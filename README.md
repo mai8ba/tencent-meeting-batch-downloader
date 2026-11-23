@@ -24,7 +24,7 @@
 
 ### 方式一：拖 zip（最快）
 
-1. 到 [Releases](https://github.com/mai8ba/tencent-meeting-batch-downloader/releases) 下载 `腾讯会议批量下载助手-v1.8.16.zip`
+1. 到 [Releases](https://github.com/mai8ba/tencent-meeting-batch-downloader/releases) 下载 `tencent-meeting-batch-downloader-v1.8.16.zip`
 2. 打开 `chrome://extensions`
 3. 右上角打开「开发者模式」
 4. 把 zip **直接拖进页面**
@@ -91,7 +91,17 @@
 ## 目录结构
 
 ```
-extension/     扩展源码（可直接加载）
-release/       打包好的 zip（拖进 chrome://extensions 即可）
-tests/         见源码仓库中的 tests 说明（node --test tests/*.test.cjs）
+extension/   扩展运行时文件（可直接「加载已解压的扩展程序」）
+src/         完整源码，含 tests/（node --test tests/*.test.cjs）
+release/     打包好的 zip（拖进 chrome://extensions 即可）
 ```
+
+## 开发
+
+```bash
+cd src
+node --test tests/*.test.cjs     # 跑全部用例
+```
+
+源码目录 `src/` 就是扩展本体，`extension/` 是它的运行时副本（不含测试）。
+改动流程：在 `src/` 改 → 跑测试 → 同步到 `extension/` → 打包 zip → 发 Release。
