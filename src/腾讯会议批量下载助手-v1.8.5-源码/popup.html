@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>腾讯会议批量下载助手</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      width: 360px;
+      margin: 0;
+      padding: 14px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 13px;
+      color: #333;
+      background: #fafbfc;
+    }
+    h3 { margin: 0 0 12px; font-size: 14px; color: #1f6feb; display: flex; align-items: center; gap: 6px; }
+    .field { margin-bottom: 12px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; }
+    .field label { display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+    .field input[type="number"] {
+      width: 76px; padding: 4px 6px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 13px;
+    }
+    .field .tip { font-size: 11px; color: #9ca3af; margin-top: 4px; }
+    .btn-save {
+      width: 100%; padding: 9px; background: #1f6feb; color: #fff; border: none;
+      border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    .btn-save:hover { opacity: 0.88; }
+    .btn-main {
+      padding: 12px; font-size: 14px; margin-bottom: 8px;
+      box-shadow: 0 2px 8px rgba(31, 111, 235, .22);
+    }
+    .btn-sub {
+      background: #fff; color: #486079; border: 1px solid #e5e7eb;
+      font-weight: 500; margin-bottom: 8px;
+    }
+    .btn-sub:hover { background: #f7f8fa; }
+    .hint { font-size: 12px; color: #9ca3af; margin: 8px 0 0; line-height: 1.6; }
+    .dirline { font-size: 12px; margin: 10px 0 8px; line-height: 1.6; }
+    .ok { color: #00965e; }
+    .warn { color: #b45309; }
+    button:disabled { opacity:.45; cursor:default; }
+    .advanced { border-top:1px solid #e5e7eb; padding-top:10px; margin-top: 4px; }
+    summary { cursor:pointer; color:#486079; margin-bottom:10px; }
+  </style>
+  <link rel="stylesheet" href="license-ui.css">
+</head>
+<body>
+  <h3>📥 腾讯会议批量下载助手</h3>
+  <div id="license-panel"></div>
+
+  <button id="open-batch" class="btn-save btn-main">打开批量下载工作台</button>
+  <button id="open-recordings" class="btn-save btn-sub">打开「我的录制」</button>
+  <button id="open-shared" class="btn-save btn-sub">下载他人分享录制课程</button>
+  <button id="open-audit" class="btn-save btn-sub">全量校验 / 续导</button>
+  <p id="dir-status" class="dirline" role="status">正在检查下载文件夹授权…</p>
+  <p class="hint">采集、筛选、勾选、导出都在工作台里完成；工作台会自动记住你的选择。</p>
+
+  <details class="advanced"><summary>下载设置</summary>
+  <div class="field">
+    <label>
+      <span>导出间隔(毫秒)</span>
+      <input type="number" id="clickDelay" min="2500" step="500">
+    </label>
+    <div class="tip">导出点击最少间隔 2500 毫秒；下载传输可并行。</div>
+  </div>
+
+  <div class="field">
+    <label>
+      <span>下载自动分类存储</span>
+      <input type="checkbox" id="autoClassify">
+    </label>
+    <div class="tip">自动存入 下载/腾讯会议录制下载/日期_类型/ 子目录（视频、逐字稿分目录）</div>
+  </div>
+
+  <div class="field">
+    <label><span>同时传输文件数</span><input type="number" id="maxConcurrent" min="1" max="8" step="1"></label>
+    <div class="tip">默认 2，范围 1–8。菜单顺序触发，文件并行传输；设置在下一批任务生效。</div>
+  </div>
+  <button id="save" class="btn-save">保存设置</button>
+  </details>
+
+  <script src="license-ui.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

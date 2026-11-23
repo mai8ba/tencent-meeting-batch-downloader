@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>下载他人分享录制课程 · 麦爸</title><link rel="stylesheet" href="shared.css"></head>
+<body><main>
+  <header><div class="eyebrow">麦爸 · 腾讯会议批量下载助手</div><h1>下载他人分享录制课程</h1><p>粘贴整段分享文字，自动拆分课程，勾选后批量下载。</p></header>
+  <button id="open-audit" class="primary">选择校验文件夹并授权读取（导出前必做）</button>
+  <p>文件保存到浏览器设置的下载位置。请选同一文件夹用于校验；授权校验目录不会改变实际保存位置。</p>
+  <section class="card"><h2>① 粘贴分享内容</h2>
+    <textarea id="source" rows="9" maxlength="200000" placeholder="可直接粘贴聊天中的整段文字，包含标题、录制链接和密码。额外说明、编号、空行会自动过滤。"></textarea>
+    <div class="row"><button id="parse" class="primary">生成待下载清单</button><button id="clear">清空</button><span id="parse-status" role="status"></span></div>
+  </section>
+  <section class="card"><h2>② 选择下载内容</h2>
+    <div class="row"><label><input type="checkbox" id="want-video" checked> 视频（MP4）</label><label><input type="checkbox" id="want-transcript" checked> 逐字稿（DOCX）</label></div>
+    <p class="hint">只有视频分享链接也可提取页面已生成的逐字稿，保留发言人和时间戳。访问验证、登录或数据未加载完成时，可打开对应课程处理后重试。</p>
+    <div class="row"><button id="select-all">全选</button><button id="invert">反选</button><span id="count">尚未导入课程</span></div>
+    <div id="list" class="list"></div>
+  </section>
+  <section class="card"><h2>③ 批量下载</h2>
+    <div class="row"><button id="start" class="primary" disabled>开始批量下载</button><button id="stop" disabled>停止后续任务</button><label>并行课程 <select id="workers"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select></label></div>
+    <p id="progress" role="status">请先生成清单。</p>
+    <p class="hint">以浏览器下载完成为准。停止会暂停已关联传输，关闭本页保留断点记录；密码、课程清单和下载凭据保存在当前浏览器本地，供重启续导；清空清单可移除课程与密码。失败的课程页会保留，便于手动处理。批量下载期间请勿在其他腾讯会议页面手动发起下载，以免干扰原网页下载任务的识别。</p>
+  </section>
+</main><script src="shared-core.js"></script><script src="license-ui.js"></script><script src="shared.js"></script></body></html>

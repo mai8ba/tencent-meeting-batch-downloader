@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>腾讯会议录制批量下载</title>
+  <link rel="stylesheet" href="batch.css" />
+</head>
+<body>
+  <span id="tmeet-build" hidden>1.8.8</span>
+  <!-- ===== 顶栏：只放品牌与状态，导航类操作收进「更多」 ===== -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">会</span>
+      <div class="brand-text">
+        <h1>腾讯会议录制批量下载</h1>
+        <p id="sourceLine" class="sub">正在连接录制目录…</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <div id="licenseBadge" class="badge">检查授权…</div>
+      <button id="btnShared" class="btn" type="button" title="打开「下载他人分享课程」页面">下载他人分享课程</button>
+    </div>
+  </header>
+
+  <!-- ===== 主操作带：四步一字排开，按流程编号 ===== -->
+  <section class="stepbar">
+    <button id="btnOpenRecordings" class="step step-go" type="button" title="在浏览器里打开腾讯会议「我的录制」">
+      <span class="step-no">1</span>
+      <span class="step-text">
+        <strong>打开录制主页</strong>
+        <em id="recordSub">未打开</em>
+      </span>
+    </button>
+
+    <button id="btnCollect" class="step" type="button" title="自动翻页读完整个录制目录">
+      <span class="step-no">2</span>
+      <span class="step-text">
+        <strong>采集清单</strong>
+        <em id="collectSub">0 项</em>
+      </span>
+    </button>
+
+    <button id="btnExport" class="step" type="button" title="先核对浏览器下载记录，只导出缺的">
+      <span class="step-no">3</span>
+      <span class="step-text">
+        <strong>开始导出</strong>
+        <em id="exportSub">未选择</em>
+      </span>
+    </button>
+
+    <button id="btnOpenFolder" class="step" type="button" title="在文件管理器里打开下载目录">
+      <span class="step-no">4</span>
+      <span class="step-text">
+        <strong>打开下载目录</strong>
+        <em>查看已下载文件</em>
+      </span>
+    </button>
+
+    <div class="spacer"></div>
+    <button id="btnStop" class="btn" type="button">停止</button>
+  </section>
+
+  <div class="selectbar">
+    <span class="muted">同名文件不会被覆盖：浏览器会自动存成「课程名 (1).docx」。保存位置由浏览器的下载设置决定，插件不再要求授权文件夹。</span>
+    <button id="btnOpenDownloads" class="link" type="button">打开下载列表</button>
+    <button id="btnDownloadSettings" class="link" type="button" title="打开浏览器下载设置，可查看/修改下载位置（chrome://settings/downloads）">改下载位置</button>
+  </div>
+
+  <!-- ===== 进度条：只在任务运行时出现，平时不占位置 ===== -->
+  <div id="progressWrap" class="progress hidden">
+    <div class="bar"><i id="progressBar"></i></div>
+    <span id="progressText">准备中…</span>
+    <div id="exportHint" class="export-hint hidden"></div>
+  </div>
+
+  <!-- ===== 选择条：搜索 + 筛选 + 勾选，只作用于下方列表 ===== -->
+  <section class="selectbar">
+    <input id="fSearch" class="input search" type="search" placeholder="搜索课程 / 会议号" autocomplete="off" />
+    <span class="divider"></span>
+    <div class="seg-group" id="typeFilter">
+      <button class="seg active" type="button" data-type="all">全部</button>
+      <button class="seg" type="button" data-type="video">仅视频</button>
+      <button class="seg" type="button" data-type="transcript">仅逐字稿</button>
+    </div>
+    <span class="divider"></span>
+    <button id="btnSelectAll" class="link" type="button">全选</button>
+    <button id="btnInvert" class="link" type="button">反选</button>
+    <button id="btnClearSel" class="link" type="button">清空选择</button>
+    <span class="divider"></span>
+    <span id="selInfo" class="muted">未选择</span>
+    <span id="pendingBar" class="pending-bar hidden">
+      有 <strong id="pendingCount">0</strong> 项待核对
+      <button id="btnClearPending" class="link" type="button">全部允许重试</button>
+    </span>
+    <span id="hint" class="hint"></span>
+  </section>
+
+  <!-- ===== 列表 ===== -->
+  <main id="listWrap" class="list-wrap">
+    <div id="emptyState" class="empty">
+      <div class="empty-icon">📥</div>
+      <h2>还没有采集到课程</h2>
+      <p>从左上角第 1 步开始挨个点：连上录制目录 → 采集清单 → 勾选后导出。不用选文件夹，也不需要额外授权。</p>
+    </div>
+    <ul id="list" class="list"></ul>
+  </main>
+
+  <!-- ===== 轻提示 ===== -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="local-files.js"></script>
+  <script src="batch.js"></script>
+</body>
+</html>

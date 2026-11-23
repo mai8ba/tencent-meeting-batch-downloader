@@ -1,0 +1,214 @@
+/* 面板架构契约（2026-10-30 真机故障后的架构调整）
+ *
+ * 背景：导出的每一步（点导出菜单、轮询下载状态）都跑在**录制页**的脚本里。
+ * 工作台一旦是独立标签页，用户一看工作台，录制页就变成后台标签页，Chrome 会：
+ *   1) 把 300ms 的轮询节流到 1s（重度节流 60s）；
+ *   2) Memory Saver（Chrome 147 默认开启）直接冻结页面 JS。
+ * 两种表现都是"导出看着像卡死"，切回录制页才继续。
+ *
+ * 结论：工作台必须是注入到录制页的面板（页面始终前台），不能退回独立标签页。
+ * 这组用例就是防止有人（包括未来的我）把它改回去 —— 改回去不会有任何报错，
+ * 只会让批量导出在真机上莫名其妙地"卡"。
+ */
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.join(__dirname, '..');
+const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
+const manifest = JSON.parse(read('manifest.json'));
+
+test('录制页的 content_scripts 必须依次加载 panel.js 和 batch.js（面板先铺壳，工作台再 bind）', () => {
+  const entry = manifest.content_scripts.find((cs) => (cs.matches || []).some((m) => m.includes('meeting-record')));
+  assert.ok(entry, '找不到录制页的 content_scripts');
+  const js = entry.js || [];
+  const iPanel = js.indexOf('panel.js');
+  const iBatch = js.indexOf('batch.js');
+  assert.ok(iPanel >= 0, 'panel.js 没被注入 —— 工作台会退回独立标签页，后台冻结问题会复发');
+  assert.ok(iBatch > iPanel, 'batch.js 必须排在 panel.js 之后，否则 $() 拿到的全是 null');
+});
+
+test('面板要读 batch.html / batch.css / panel.css，必须有 web_accessible_resources（且只对腾讯会议开放）', () => {
+  const war = manifest.web_accessible_resources || [];
+  const hit = war.find((w) => (w.resources || []).includes('batch.html'));
+  assert.ok(hit, '缺 web_accessible_resources：content script 里 fetch 扩展资源会直接失败');
+  for (const f of ['batch.html', 'batch.css', 'panel.css']) assert.ok(hit.resources.includes(f), '缺少资源声明：' + f);
+  assert.deepEqual(hit.matches, ['https://meeting.tencent.com/*'], '资源不能对所有站点开放');
+});
+
+test('panel.js：把影子根交给工作台，并把 :root 改写成 :host', () => {
+  const src = read('panel.js');
+  assert.match(src, /__tmeetPanelRoot\s*=\s*shadow/, 'panel.js 必须暴露影子根，工作台才能在里面查节点');
+  assert.match(src, /__tmeetPanelReady\s*=\s*ready/, 'panel.js 必须暴露"注入完成"的 promise，工作台要等它');
+  assert.match(src, /replace\(\/:root\\s\*\\\{\/g, ':host \{'\)/, 'panel.css 注入前必须把 :root 改写成 :host（影子根里 :root 不匹配）');
+  assert.match(src, /:host/, '样式必须改写成 :host');
+  assert.match(src, /TMeetPanel\s*=\s*Object\.freeze/, 'panel.js 必须提供全局开关给悬浮球用');
+});
+
+test('batch.js：面板模式直连引擎，不走跨标签页消息', () => {
+  const src = read('batch.js');
+  assert.match(src, /globalThis\.TMeetEngine[\s\S]{0,200}?\.send\(/, 'call() 里必须优先走 TMeetEngine');
+  assert.match(src, /const scope = \(\) => globalThis\.__tmeetPanelRoot \|\| document/, '节点查询必须以影子根为作用域');
+  assert.match(src, /if \(inPanel\(\)\) return \[\{ id: 'panel'/, '面板模式下不该再去查标签页');
+  // 去掉本地校验后，面板不再需要任何"选目录/读文件"的能力
+  assert.doesNotMatch(src, /TMeetFiles/, 'batch.js 不该再依赖目录句柄（本地校验已移除）');
+  assert.doesNotMatch(src, /showDirectoryPicker/, 'batch.js 不该再要求授权下载文件夹');
+});
+
+test('面板与独立页共用同一条指令处理路径', () => {
+  const content = read('content.js');
+  const batch = read('batch.js');
+  assert.match(content, /function handleBatch\(message, respond\)/, '指令处理要抽成函数，两条入口共用');
+  assert.match(content, /globalThis\.TMeetEngine\s*=\s*Object\.freeze/, 'content.js 必须暴露 TMeetEngine');
+  assert.match(content, /handleBatch\(message, respond\)/, 'chrome.runtime 入口仍要复用 handleBatch');
+  // 进度推送：content script 之间收不到 runtime 消息，面板必须靠同页直推
+  assert.match(content, /__tmeetPanelLive\?\.\(\{ type: 'tmeet\.live'/, 'pushLive 必须同页直推给面板，否则面板进度条不动');
+  assert.match(batch, /globalThis\.__tmeetPanelLive = onLive/, 'batch.js 必须注册同页进度回调');
+});
+
+test('后台：面板需要的 op 都在，且 open-url 只放行下载列表/下载设置', () => {
+  const src = read('background.js');
+  assert.match(src, /'local\.match'/, '缺 local.match：面板读不到扩展源目录句柄，没法做一致性实测');
+  assert.match(src, /'open-dir-picker'/, '缺 open-dir-picker：面板第 ② 步没法选目录');
+  assert.match(src, /'open-panel'/, '缺 open-panel：popup 只能开独立标签页，后台冻结问题会复发');
+  assert.match(src, /'open-url'/, '缺 open-url：面板里打不开 chrome://downloads');
+  assert.match(src, /\^\(chrome\|edge\):\\\/\\\/\(downloads\|settings\\\/downloads\)\$/, 'open-url 必须白名单校验，不能变成任意导航通道');
+  assert.match(read('file-check.js'), /tmeet\.file-contains/, '离屏文档要支持 file-contains，否则 local.match 无从判断');
+});
+
+/* ── 下面三条来自 2026-10-30 第二轮真机故障 ─────────────────────────────
+ * 现象：点第 1 步"卡死没反应"，界面停在全套初始文案（连"检查授权…"都不变）。
+ * 两个独立原因，各锁一条：
+ *   1) 重载扩展后没刷新页面 ⇒ 旧 batch.js 去找已删除的 btnPickDir，
+ *      `$('btnPickDir').onclick` 抛 TypeError，bind() 当场中断，
+ *      后面所有按钮都没绑上 —— 界面从此完全没反应，且控制台之外无痕迹。
+ *   2) "打开录制主页"在面板模式下会调后台 open-recordings，
+ *      后台 ping 不过就 reload 当前标签页 —— 把面板所在的脚本一起销毁。
+ */
+
+test('初始化必须先自检结构，失败要显示在界面上（禁止静默失效）', () => {
+  const src = read('batch.js');
+  assert.match(src, /const REQUIRED_IDS = \[/, '必须有"界面必需元素"清单');
+  assert.match(src, /function assertDom\(\)/, '必须能在 bind 之前自查结构');
+  assert.match(src, /function reportBootError/, '初始化失败必须写到界面上，否则用户只看到"点了没反应"');
+  // 顺序必须是 bind 先、自检后：反过来的话缺一个元素就让 bind 整段跳过，
+  // 连事件委托都挂不上，还是"整个面板没反应"。
+  const bindAt = src.indexOf('try { bind(); }');
+  const checkAt = src.indexOf('try { assertDom(); }');
+  assert.ok(bindAt > 0 && checkAt > bindAt, '必须先 bind（挂委托）再 assertDom，否则自检失败会连委托一起跳过');
+  assert.match(src, /catch \(e\) \{ reportBootError\(e\); \}/, '捕获后必须调用 reportBootError');
+  // render / 首次同步失败也不能让后续定时器注册不上
+  assert.match(src, /try \{ await Promise\.all\(\[refresh\(\{ silent: false \}\), readLicense\(\)\]\); \}/,
+    '首次同步失败必须被捕获，否则定时刷新永远不启动，界面就此定格');
+});
+
+test('按钮必须走事件委托，禁止逐个 onclick（一处取不到元素就全废）', () => {
+  const src = read('batch.js');
+  assert.match(src, /const clickActions = Object\.create\(null\)/, '必须有「id → 动作」表');
+  assert.match(src, /scope\(\)\.addEventListener\('click'/, '必须在影子根上挂一次 click 委托');
+  assert.match(src, /const action = node && clickActions\[node\.id\]/, '委托要按 id 分发到动作表');
+  // 委托必须挂在"可能抛异常的语句"之前：它就在 bind 开头（clickActions 声明之后）
+  const tableAt = src.indexOf('const clickActions = Object.create(null)');
+  const clickAt = src.indexOf("scope().addEventListener('click'");
+  const firstMaybeThrow = src.indexOf("$('list')?.addEventListener");
+  assert.ok(clickAt > tableAt && clickAt < firstMaybeThrow, '委托要尽早挂上，别排在可能抛异常的语句后面');
+  // 除了注释里的反面教材，不应该再出现逐个 onclick 赋值
+  assert.doesNotMatch(src, /\$\('btn[A-Za-z]+'\)\.onclick\s*=/,
+    '又出现裸 onclick 赋值了：缺元素会打断 bind，请加进 clickActions');
+});
+
+test('面板模式下第 1 步只能"重连"，绝不能调 open-recordings 刷新当前页', () => {
+  const src = read('batch.js');
+  const handlerAt = src.indexOf('clickActions.btnOpenRecordings =');
+  assert.ok(handlerAt > 0, '找不到第 1 步的点击处理');
+  const guardAt = src.indexOf('if (inPanel())', handlerAt);
+  const openAt = src.indexOf("op: 'open-recordings'", handlerAt);
+  assert.ok(guardAt > handlerAt, '第 1 步必须先判 inPanel()：面板就在录制页里，不该再去找标签页');
+  assert.ok(openAt > guardAt,
+    'open-recordings 只能留在面板分流之后的独立页分支里：后台会 ping 失败即 reload，' +
+    '而面板脚本就在这个页面里，reload 等于把面板自己销毁（用户看到"卡死没反应"）');
+});
+
+test('「更多」菜单已按用户要求下线：下载他人分享课程直接放顶栏', () => {
+  const html = read('batch.html');
+  assert.doesNotMatch(html, /id="moreMenu"/, '"更多"下拉已删除，不要再加回来');
+  assert.doesNotMatch(html, /id="btnAudit"/, '全量校验入口已下线');
+  assert.match(html, /<button id="btnShared"[^>]*>下载他人分享课程<\/button>/, '分享课程入口必须直接可见，不藏在菜单里');
+  // 诊断信息改由点击顶部状态行触发，不占界面位置
+  assert.match(read('batch.js'), /clickActions\.sourceLine =/, '诊断信息要保留一个不占位置的入口（点状态行复制）');
+});
+
+test('面板启动必须由外壳显式叫醒，不能猜 document.readyState', () => {
+  const panel = read('panel.js');
+  const batch = read('batch.js');
+  // 外壳：DOM 铺好后叫醒工作台，并给出可见状态
+  assert.match(panel, /globalThis\.__tmeetPanelBoot = boot/, 'panel.js 必须提供叫醒入口');
+  assert.match(panel, /const init = globalThis\.__tmeetBatchInit;/, 'panel.js 必须取到工作台的启动函数');
+  assert.match(panel, /typeof init !== 'function'/, '取不到启动函数时要能识别出来（说明 batch.js 是旧版）');
+  assert.match(panel, /工作台未启动，请按 F5 刷新/, '3 秒没起来必须给出可照做的提示，不能静默');
+  assert.match(panel, /host\.dataset\.tmeetVersion = version/, '必须把版本号写到宿主属性上，一眼可查');
+  assert.match(panel, /ws-status/, '标题栏必须有启动状态灯');
+  // 工作台：暴露幂等的启动函数，并在启动阶段留痕
+  assert.match(batch, /globalThis\.__tmeetBatchInit = initOnce/, 'batch.js 必须暴露启动函数');
+  assert.match(batch, /if \(initPromise\) return initPromise;/, '启动必须幂等（外壳和兜底定时器都会叫）');
+  assert.match(batch, /markStage\('booting'\)/, '启动要留痕，便于定位卡在哪一步');
+  assert.match(batch, /markStage\('ready'\)/, '启动完成要留痕');
+  // 关键：面板模式下不能再依赖 readyState（猜错就是"界面在、按钮全无反应"）
+  const bootAt = batch.indexOf('globalThis.__tmeetBatchInit = initOnce;');
+  const readyStateAt = batch.indexOf("document.readyState === 'loading'");
+  assert.ok(bootAt > 0 && readyStateAt > bootAt, 'readyState 判断只能出现在独立页分支里');
+  const panelBranch = batch.slice(bootAt, readyStateAt);
+  assert.doesNotMatch(panelBranch, /document\.readyState/, '面板模式下禁止用 readyState 判断启动时机');
+});
+
+test('版本号必须在标题栏可见（改了没生效时一眼可辨）', () => {
+  const manifest = JSON.parse(read('manifest.json'));
+  assert.match(manifest.version, /^1\.8\.\d+$/, '版本号格式应为 1.8.x，且每轮改动都要升');
+  // 不写死具体版本号：只要三处（manifest / HTML 戳 / 脚本常量）一致即可
+  const batch = read('batch.js');
+  const jsVersion = (batch.match(/const BATCH_JS_VERSION = '([^']+)'/) || [])[1] || '';
+  assert.equal(jsVersion, manifest.version, '脚本版本常量必须与 manifest 一致');
+  assert.match(read('panel.js'), /ws-ver/, '标题栏要显示版本号');
+  assert.match(read('panel.js'), /chrome\.runtime\?\.getManifest\?\.\(\)/, '版本号必须从 manifest 取，不要硬编码');
+});
+
+test('必须有版本戳自检：HTML 是 fetch 的、JS 是打包的，两者不一致就是"旧 JS + 新 HTML"', () => {
+  const html = read('batch.html');
+  const batch = read('batch.js');
+  assert.match(html, /id="tmeet-build"/, 'batch.html 必须带版本戳');
+  const stamp = (html.match(/id="tmeet-build"[^>]*>([^<]+)</) || [])[1] || '';
+  assert.equal(stamp.trim(), JSON.parse(read('manifest.json')).version,
+    '版本戳必须与 manifest 一致（改版本号时两处都要改）');
+  assert.match(batch, /tmeet-build/, 'batch.js 必须读版本戳');
+  assert.match(batch, /请在扩展页点 ⟳ 重新加载/, '版本对不上必须给出可照做的提示');
+});
+
+test('工作台脚本要带自己的版本号，外壳据此判断"你跑的是旧脚本"', () => {
+  const batch = read('batch.js');
+  const panel = read('panel.js');
+  const manifest = JSON.parse(read('manifest.json'));
+  const m = batch.match(/const BATCH_JS_VERSION = '([^']+)'/);
+  assert.ok(m, 'batch.js 必须声明自身版本');
+  assert.equal(m[1], manifest.version, '脚本版本必须与 manifest 一致（改版本号时两处都要改）');
+  assert.match(batch, /globalThis\.__tmeetBatchVersion = BATCH_JS_VERSION/, '必须把版本暴露给外壳');
+  assert.match(batch, /tmeetJsVersion/, '必须把运行中的版本写到宿主属性上（页面控制台可读）');
+  assert.match(panel, /__tmeetBatchVersion/, '外壳必须比对脚本版本与扩展版本');
+  assert.match(panel, /脚本版本不匹配/, '对不上必须明确报出来');
+});
+
+test('兼容垫片必须最先注入：面板里没有 TMeetFiles 这个全局', () => {
+  const entry = manifest.content_scripts.find((cs) => (cs.matches || []).some((m) => m.includes('meeting-record')));
+  const js = entry.js || [];
+  assert.equal(js[0], 'compat.js', 'compat.js 必须排在 js 数组首位');
+  const compat = read('compat.js');
+  assert.match(compat, /globalThis\.TMeetFiles = Object\.freeze/, '垫片要给出 TMeetFiles 的降级实现');
+  assert.match(compat, /typeof globalThis\.TMeetFiles !== 'undefined'\) return;/, '已有真实实现时不能覆盖');
+  // 垫片不能引入 downloads 等 content script 拿不到的 API
+  assert.doesNotMatch(compat, /chrome\.downloads/, 'content script 没有 downloads 权限，垫片不能碰它');
+});
+
+test('扩展 manifest 不要写死 key：没有 key 时重新加载扩展 ID 会变，授权会丢', () => {
+  // 这条是给未来的自己看的：一旦加了 key，改目录重新加载就会换 ID，
+  // 用户的设备授权码与历史记录全部对不上。
+  assert.equal(manifest.key, undefined, 'manifest 里不要写 key（会锁死扩展 ID，调试期反而碍事）');
+});

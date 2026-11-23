@@ -1,0 +1,148 @@
+/* 面板外壳：贴边把手 + 右侧抽屉。
+ * 工作台内部样式仍由 batch.css 提供（注入到同一个影子根里）。
+ *
+ * 形态说明：录制页本身还要用，所以工作台不再铺满整页 ——
+ * 平时只在屏幕右边缘留一个竖排把手，点一下从右边滑出窄抽屉，
+ * 再点一下（或按 Esc / 点遮罩）收回去。
+ */
+
+.ws-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 24, 40, 0.34);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease;
+}
+.ws-open .ws-backdrop { opacity: 1; pointer-events: auto; }
+
+/* 贴在屏幕右边缘的竖排把手 */
+.ws-handle {
+  position: fixed;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 8px;
+  background: var(--surface, #fff);
+  color: var(--brand, #1f6feb);
+  border: 1px solid var(--line, #e4e7ec);
+  border-right: none;
+  border-radius: 12px 0 0 12px;
+  box-shadow: -4px 0 14px rgba(16, 24, 40, 0.14);
+  font: 600 12.5px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  letter-spacing: 3px;
+  cursor: pointer;
+  z-index: 2;
+  transition: opacity 0.18s ease, transform 0.18s ease, background 0.18s ease;
+}
+.ws-handle:hover { background: #f4f8ff; }
+.ws-handle:focus-visible { outline: 2px solid var(--brand, #1f6feb); outline-offset: 2px; }
+/* 抽屉打开后把手让位，避免和抽屉叠在一起 */
+.ws-open .ws-handle { opacity: 0; pointer-events: none; transform: translateY(-50%) translateX(10px); }
+
+/* 抽屉本体：从右边滑出 */
+.ws-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: min(430px, 96vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface, #fff);
+  border-left: 1px solid var(--line, #e4e7ec);
+  box-shadow: -14px 0 36px rgba(16, 24, 40, 0.18);
+  transform: translateX(100%);
+  transition: transform 0.24s cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: transform;
+}
+.ws-open .ws-drawer { transform: translateX(0); }
+
+.ws-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line, #e4e7ec);
+  background: var(--surface, #fff);
+  flex: 0 0 auto;
+}
+
+.ws-title {
+  font-weight: 700;
+  font-size: 14.5px;
+}
+
+.ws-ver {
+  margin-left: 8px;
+  font-style: normal;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--muted, #8b919b);
+}
+
+/* 启动状态灯：把"面板在但没反应"从静默变成一眼可见 */
+.ws-status {
+  flex: 0 0 auto;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #f0f2f5;
+  color: var(--muted, #8b919b);
+  white-space: nowrap;
+}
+.ws-status.ok { background: #e8f7f0; color: var(--ok, #17a673); }
+.ws-status.err { background: #fdf2f2; color: var(--danger, #b02a2a); }
+
+.ws-close {
+  margin-left: auto;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line, #e4e7ec);
+  background: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--text-2, #5b616b);
+}
+.ws-close:hover { background: #f2f4f7; }
+
+.ws-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg, #f5f6f8);
+  overflow: hidden;
+}
+
+/* 面板头已经有标题，工作台顶栏的重复标题就不再显示（副标题"已连接…"保留，有用） */
+.ws-body .brand-text h1 { display: none; }
+
+/* 把手上的角标：提示"这边有事"，但不自动弹抽屉 */
+.ws-handle-badge {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 18px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--brand, #1f6feb);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0;
+  writing-mode: horizontal-tb;   /* 角标用正常横排，别跟着把手竖着站 */
+  text-orientation: mixed;
+  text-align: center;
+}

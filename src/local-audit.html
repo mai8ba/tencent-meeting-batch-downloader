@@ -1,0 +1,16 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>选择下载文件夹 / 本地校验</title><link rel="stylesheet" href="shared.css"><main>
+<h1>① 选择校验文件夹并授权读取</h1>
+<p>只需要做一次：选浏览器实际下载目录并授予读取权限。之后直接回录制页导出即可，不用每次重选。只读取，不删除文件、不上传内容。</p>
+<p>实际保存位置由浏览器的下载设置决定。这里选择文件夹仅用于本地校验，不会改变下载位置；请先在浏览器设置中修改下载位置，再选同一文件夹授权。</p>
+<p id="dir-state" role="status">正在检查…</p>
+<button id="choose" class="primary">选择下载文件夹（只读）</button> <button id="restore" hidden>恢复上次授权（无需重选）</button>
+<p id="status" role="status"></p>
+
+<section id="scan-section">
+<h2 style="margin-top:28px">② （可选）全量校验与续导</h2>
+<p class="hint">需要核对历史文件、找出空模板、或查看“待核对”任务时再做。日常导出不需要跑全量校验。</p>
+<button id="scan" disabled>开始全量校验</button> <button id="refresh">查看待核对任务</button> <button id="report">保存校验报告</button>
+<div id="records"></div><pre id="results" style="white-space:pre-wrap"></pre>
+<p>正文非空、ZIP校验通过仍不能证明腾讯返回了全部发言；视频检查容器结构，不代替完整播放验收。</p>
+</section>
+<script src="local-files.js"></script><script src="local-audit.js"></script></main></html>

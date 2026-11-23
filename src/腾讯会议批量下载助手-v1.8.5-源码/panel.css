@@ -1,0 +1,98 @@
+/* 面板外壳：只负责"遮罩 + 卡片 + 尺寸 + 开关"。
+ * 工作台内部样式仍由 batch.css 提供（注入到同一个影子根里）。
+ *
+ * 尺寸按"界面大一些"设计：最宽 1200px、最高 90vh，随窗口自适应。
+ */
+
+.ws-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 24, 40, 0.38);
+  backdrop-filter: blur(2px);
+}
+
+.ws-card {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(1200px, 94vw);
+  height: min(90vh, 920px);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface, #fff);
+  border-radius: 14px;
+  box-shadow: 0 24px 64px rgba(16, 24, 40, 0.28);
+  overflow: hidden;
+  font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  color: var(--text, #17181a);
+}
+
+.ws-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line, #e4e7ec);
+  background: var(--surface, #fff);
+  flex: 0 0 auto;
+}
+
+.ws-title {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.ws-ver {
+  margin-left: 8px;
+  font-style: normal;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--muted, #8b919b);
+}
+
+/* 启动状态灯：把"面板在但没反应"从静默变成一眼可见 */
+.ws-status {
+  flex: 0 0 auto;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #f0f2f5;
+  color: var(--muted, #8b919b);
+  white-space: nowrap;
+}
+.ws-status.ok { background: #e8f7f0; color: var(--ok, #17a673); }
+.ws-status.err { background: #fdf2f2; color: var(--danger, #b02a2a); }
+
+.ws-tip {
+  color: var(--muted, #8b919b);
+  font-size: 12px;
+}
+
+.ws-close {
+  margin-left: auto;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line, #e4e7ec);
+  background: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--text-2, #5b616b);
+}
+
+.ws-close:hover { background: #f2f4f7; }
+
+.ws-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg, #f5f6f8);
+}
+
+/* 面板头已经有标题，工作台顶栏的重复标题就不再显示（副标题"已连接…"保留，有用） */
+.ws-body .brand-text h1 { display: none; }

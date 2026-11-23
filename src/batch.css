@@ -1,0 +1,599 @@
+/* ===========================================================================
+   腾讯会议录制批量下载 —— 工作台样式
+   浅色工作台：白底 + 深字 + 单一强调色；长列表用 content-visibility 提速
+   =========================================================================== */
+
+:root {
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --line: #e4e7ec;
+  --line-soft: #eef0f3;
+  --text: #17181a;
+  --text-2: #5b616b;
+  --muted: #8b919b;
+  --brand: #1f6feb;
+  --brand-hover: #1a5fd0;
+  --brand-weak: #e8f0fe;
+  --danger: #d93a3a;
+  --ok: #1a9c63;
+  --warn: #b26a00;
+  --radius: 10px;
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 12px rgba(16, 24, 40, 0.06);
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; height: 100%; }
+
+body {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.spacer { flex: 1; }
+.hidden { display: none !important; }
+.muted { color: var(--muted); font-size: 13px; }
+
+/* ---------- 顶栏 ---------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+
+.logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #1f6feb, #4a91ff);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: -0.5px;
+  flex: none;
+}
+
+.brand-text { min-width: 0; }
+
+.brand-text h1 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.sub {
+  margin: 1px 0 0;
+  font-size: 12.5px;
+  color: var(--muted);
+  max-width: 560px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.top-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+
+.badge {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #f0f2f5;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.badge.ok { background: #e8f7f0; color: var(--ok); }
+.badge.warn { background: #fdf3e6; color: var(--warn); }
+.badge.err { background: #fdf2f2; color: var(--danger); }
+
+/* ---------- 按钮 ---------- */
+.btn {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  padding: 8px 15px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, opacity 0.12s;
+  white-space: nowrap;
+}
+.btn:hover:not(:disabled) { background: #f7f8fa; border-color: #d5d9df; }
+.btn:active:not(:disabled) { background: #f0f2f5; }
+.btn:disabled, .btn[aria-disabled="true"], .btn.is-blocked { opacity: 0.45; cursor: not-allowed; }
+/* 按钮"点不了"时仍然接住点击并说明原因，不能让浏览器把事件吞掉 */
+
+.btn.ghost { border-color: transparent; background: transparent; color: var(--text-2); }
+.btn.ghost:hover:not(:disabled) { background: #f1f3f6; }
+
+.link {
+  appearance: none;
+  border: none;
+  background: none;
+  color: var(--brand);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.link:hover { background: var(--brand-weak); }
+.link:disabled { color: var(--muted); cursor: not-allowed; background: none; }
+
+.input {
+  height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 13.5px;
+  color: var(--text);
+  background: var(--surface);
+  outline: none;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(31, 111, 235, 0.12); }
+.input[type="search"] { width: 250px; }
+
+/* ---------- 选择条 ---------- */
+.selectbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 24px;
+  background: #fbfcfd;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 13px;
+  /* 这一条塞得满，任何子项被压窄都会把中文挤成竖排 —— 一律不许收缩。 */
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+.selectbar > * { flex: none; }
+.selectbar .link { white-space: nowrap; }
+.selectbar .muted { white-space: nowrap; }
+.selectbar .seg { white-space: nowrap; }
+.selectbar .hint {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+.divider { width: 1px; height: 14px; background: var(--line); }
+.hint { font-size: 12.5px; color: var(--muted); }
+.selectbar .input.search { width: 212px; height: 30px; font-size: 13px; }
+.hint.warn { color: var(--warn); }
+.hint.err { color: var(--danger); }
+
+.seg-group {
+  display: inline-flex;
+  background: #eef0f3;
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+.seg {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 13px;
+  padding: 5px 13px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s;
+}
+.seg:hover { color: var(--text); }
+.seg.active {
+  background: var(--surface);
+  color: var(--brand);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+}
+
+/* ---------- 列表 ---------- */
+.list-wrap {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 0 24px;
+}
+
+.list { list-style: none; margin: 0; padding: 0; }
+
+.item {
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  gap: 10px;
+  padding: 13px 24px;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--surface);
+  content-visibility: auto;
+  contain-intrinsic-size: auto 76px;
+  transition: background 0.1s;
+}
+.item:hover { background: #fbfcfe; }
+/* 勾上的行加一道左侧色条：一眼能看出哪些已选（浅蓝底在长列表里不够显眼）。 */
+.item.checked { background: #f5f9ff; box-shadow: inset 3px 0 0 var(--brand); }
+.item.is-exported .item-title { color: var(--text-2); }
+
+.item-box { display: flex; align-items: flex-start; padding-top: 2px; }
+.item-box input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--brand);
+  cursor: pointer;
+}
+
+.item-body { min-width: 0; cursor: pointer; }
+
+.item-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 3px;
+}
+
+.item-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* 按内容宽度、最多占 78%：徽章跟标题挨着，不要被推到行尾。 */
+  flex: 0 1 auto;
+  max-width: 78%;
+  min-width: 0;
+}
+
+.item-type {
+  flex: none;
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #f0f2f5;
+  color: var(--text-2);
+  font-weight: 500;
+}
+.item-type.video { background: #f3edff; color: #6a3fd1; }
+.item-type.transcript { background: var(--brand-weak); color: var(--brand); }
+
+.item-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+.item-meta .dot { color: #ccd0d6; }
+.item-meta .tag.done { color: var(--ok); }
+.item-meta .tag.err { color: var(--danger); }
+.item-meta .tag.warn { color: var(--warn); }
+.item-meta .retry {
+  appearance: none;
+  border: 1px solid #f0dcc0;
+  background: #fffaf1;
+  color: var(--warn);
+  font-size: 11.5px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.item-meta .retry:hover { background: #fdf3e6; border-color: #e8cba0; }
+
+/* 待核对提示条：告诉用户有课程被锁住了，以及怎么解开 */
+.pending-bar {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  white-space: nowrap;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--warn);
+  background: #fffaf1;
+  border: 1px solid #f4e6cd;
+  border-radius: 999px;
+  padding: 2px 6px 2px 12px;
+}
+.pending-bar strong { font-weight: 600; }
+.pending-bar .link { color: var(--warn); font-size: 12.5px; }
+.pending-bar .link:hover { background: #fdf3e6; }
+
+/* ---------- 空状态 ---------- */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 90px 24px;
+  text-align: center;
+  color: var(--muted);
+}
+.empty-icon { font-size: 40px; margin-bottom: 10px; }
+.empty h2 { margin: 0 0 6px; font-size: 16px; color: var(--text); font-weight: 600; }
+.empty p { margin: 0; font-size: 13.5px; line-height: 1.8; }
+
+/* ---------- 主操作带（四步） ---------- */
+.stepbar {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  padding: 12px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 12px 8px 9px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  min-width: 0;
+  transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
+}
+.step:hover:not(:disabled):not(.is-blocked) { border-color: #c7d5ea; background: #f9fbff; }
+.step:disabled, .step[aria-disabled="true"], .step.is-blocked { opacity: 0.45; cursor: not-allowed; }
+/* 导出中不是"不可用"，而是"正在进行"：保持醒目，避免看起来像坏掉了 */
+.step.is-running:disabled, .step.is-running.is-blocked, .step.is-running[aria-disabled="true"] {
+  opacity: 1; cursor: wait;
+}
+.step.is-running { border-color: var(--brand); background: var(--brand-weak); }
+.step.is-running .step-no { background: #fff; color: var(--brand); }
+.step.is-running .step-text strong { color: var(--brand); }
+.step.is-running .step-text em { color: var(--brand); }
+
+.step-no {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: 50%;
+  background: #eef0f3;
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
+.step-text { display: flex; flex-direction: column; min-width: 0; }
+.step-text strong { font-size: 13.5px; font-weight: 600; color: var(--text); white-space: nowrap; }
+.step-text em {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+}
+
+/* 已完成：序号换成对勾 */
+.step.is-done .step-no { background: #e8f7f0; color: transparent; }
+.step.is-done .step-no::after {
+  content: '✓';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--ok);
+  font-size: 12px;
+}
+.step.is-done .step-text em { color: var(--ok); }
+
+/* 当前该做的一步：实心主色，视线第一时间落上去 */
+.step-go:not(:disabled) {
+  border-color: var(--brand);
+  background: var(--brand);
+  box-shadow: 0 2px 10px rgba(31, 111, 235, 0.22);
+}
+.step-go:not(:disabled) strong { color: #fff; }
+.step-go:not(:disabled) em { color: rgba(255, 255, 255, 0.82); }
+.step-go:not(:disabled) .step-no { background: rgba(255, 255, 255, 0.24); color: #fff; }
+/* v1.8.14：hover 时背景必须一直是深蓝。
+ * 旧写法 `.step-go:not(:disabled):hover` 特异性低于上面的
+ * `.step:hover:not(:disabled):not(.is-blocked)`（后者把背景刷成浅色 #f9fbff），
+ * 结果主按钮悬停后变成"浅底 + 白字"，文字等于消失。提高特异性并保证文字对比。 */
+.step.step-go:not(:disabled):hover,
+.step.step-go:not(:disabled):focus-visible {
+  background: var(--brand-hover);
+  border-color: var(--brand-hover);
+}
+.step.step-go:not(:disabled):hover strong,
+.step.step-go:not(:disabled):focus-visible strong { color: #fff; }
+.step.step-go:not(:disabled):hover em,
+.step.step-go:not(:disabled):focus-visible em { color: rgba(255, 255, 255, 0.86); }
+.step.step-go:not(:disabled):hover .step-no,
+.step.step-go:not(:disabled):focus-visible .step-no { background: rgba(255, 255, 255, 0.24); color: #fff; }
+
+/* 需要用户先处理（未授权）：淡黄提醒，不用红 */
+.step.needs-attention { border-color: #f0dcc0; background: #fffaf1; }
+.step.needs-attention .step-no { background: #f7e4c6; color: var(--warn); }
+.step.needs-attention .step-text em { color: var(--warn); }
+
+/* 「下载他人分享课程」直接放顶栏：独立入口，不再藏在"更多"里。
+   原来那个下拉菜单（全量校验/复制诊断/清空清单）已按用户要求下线，
+   诊断信息的复制入口改为点顶部状态行。 */
+#btnShared { white-space: nowrap; }
+
+/* 导出期间的现场提醒：重载扩展会当场打断正在跑的导出 */
+.export-hint {
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--warn);
+}
+
+/* ---------- 进度条（独立一条，平时隐藏） ---------- */
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 24px;
+  background: #fbfcfd;
+  border-bottom: 1px solid var(--line-soft);
+}
+.progress .bar {
+  flex: 1;
+  height: 8px;
+  background: #eef0f3;
+  border-radius: 999px;
+  overflow: hidden;
+  min-width: 120px;
+}
+.progress .bar i {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #1f6feb, #4a91ff);
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}
+.progress span { font-size: 12.5px; color: var(--text-2); white-space: nowrap; }
+.progress.err .bar i { background: linear-gradient(90deg, #d93a3a, #ef6a6a); }
+.progress.ok .bar i { background: linear-gradient(90deg, #1a9c63, #43c08d); }
+
+/* ---------- 浮层提示 ---------- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 92px;
+  transform: translateX(-50%);
+  background: rgba(23, 24, 26, 0.92);
+  color: #fff;
+  font-size: 13px;
+  padding: 9px 16px;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.24);
+  z-index: 50;
+  max-width: min(640px, calc(100vw - 48px));
+  line-height: 1.5;
+}
+.toast.err { background: rgba(176, 42, 42, 0.95); }
+
+/* ---------- 窄屏 ---------- */
+@media (max-width: 900px) {
+  .topbar { flex-wrap: wrap; }
+  .top-actions { margin-left: 0; flex-wrap: wrap; }
+  /* 四个步骤块在窄屏折成两行，仍然保持 1-2-3-4 的阅读顺序 */
+  .stepbar { flex-wrap: wrap; }
+  .step { flex: 1 1 45%; }
+  .step-text em { max-width: none; }
+  .selectbar { flex-wrap: wrap; }
+  .input[type="search"] { width: 100%; }
+}
+@media (max-width: 560px) {
+  .step { flex: 1 1 100%; }
+}
+
+/* 待核对的课：淡黄底，和普通行区分开 */
+.item.is-pending { background: #fffdf7; }
+.item.is-pending:hover { background: #fffaf0; }
+
+/* ============================================================
+   v1.8.15 交互与视觉优化
+   ============================================================ */
+
+/* 键盘可达：可点元素都要有看得见的焦点圈。
+   以前只有输入框有 focus 样式，用 Tab 键走一遍时按钮完全看不出焦点在哪。 */
+.btn:focus-visible,
+.link:focus-visible,
+.seg:focus-visible,
+.step:focus-visible,
+.item-meta .retry:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.seg:focus-visible { outline-offset: 1px; }
+
+/* 列表末尾"还有 N 项未显示"的提示行：原来靠行内样式，挪成类便于统一。 */
+.list-more {
+  display: block;
+  grid-template-columns: none;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 14px 24px;
+  cursor: default;
+}
+.list-more:hover { background: var(--surface); }
+
+/* 滚动条：细一点、圆一点，长列表看着更清爽 */
+.list-wrap::-webkit-scrollbar { width: 10px; }
+.list-wrap::-webkit-scrollbar-track { background: transparent; }
+.list-wrap::-webkit-scrollbar-thumb {
+  background: #d5dae1;
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+.list-wrap::-webkit-scrollbar-thumb:hover { background: #b6bfcb; background-clip: content-box; }
+
+/* 顶部提示条：用途和"选择条"不同，样式拆开，免得互相牵连。 */
+.noticebar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line-soft);
+}
+.noticebar .muted { color: var(--muted); font-size: 12.5px; }
+.noticebar .link:first-of-type { margin-left: auto; }
+
+/* 尊重系统里的"减少动态效果"设置 */
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+
+/* ============================================================
+   抽屉模式：工作台挂在录制页右侧，容器很窄 —— 一律竖排
+   （只在 .ws-body 里生效；独立页打开时仍是宽版横排）
+   ============================================================ */
+.ws-body .topbar {
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 14px;
+}
+.ws-body .topbar .top-actions { margin-left: 0; }
+.ws-body .brand-text .sub { max-width: 100%; white-space: normal; }
+.ws-body .stepbar {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 10px 14px;
+}
+.ws-body .step { width: 100%; }
+.ws-body .step-text em { max-width: none; }
+.ws-body .noticebar { padding: 8px 14px; }
+.ws-body .selectbar {
+  flex-wrap: wrap;
+  overflow: visible;
+  padding: 8px 14px;
+}
+.ws-body .selectbar .input.search { width: 100%; }
+.ws-body .selectbar .hint { margin-left: 0; width: 100%; text-align: left; }
+.ws-body .progress { padding: 8px 14px; flex-wrap: wrap; }
+.ws-body .item { padding: 10px 14px; }
+.ws-body .list-more { padding: 12px 14px; }
+.ws-body .empty { padding: 48px 16px; }
