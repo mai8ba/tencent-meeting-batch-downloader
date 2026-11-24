@@ -151,3 +151,49 @@ test('分享课程页快照：下载按钮、访问密码框、转写标签、�
   assert.ok(site.text.transcriptTab.test('逐字稿'));
   assert.ok(site.text.passwordSubmit.test('前往查看'));
 });
+
+test('逐字稿标签去重：会议号+时间相同合并成一条，优先留纯逐字稿行走清单页快路', () => {
+  // 同一场录制的两行：视频行（有大小）与转写行（无大小），会议号、时间都一样。
+  const rows = [
+    { fileId: 'v1', name: '玫子', type: 'video', meetingId: '448436389', time: '2026-11-20 10:00', hasVideo: true, size: '24.10MB' },
+    { fileId: 't1', name: '转写_玫子', type: 'transcript', meetingId: '448436389', time: '2026-11-20 10:00', hasVideo: false },
+  ];
+  const merged = site.mergeTranscriptRows(rows);
+  assert.equal(merged.length, 1, '两行合成一条');
+  assert.equal(merged[0].fileId, 't1', '优先保留纯逐字稿行');
+  assert.equal(merged[0].transcriptVia, 'list', '走清单页快路，不进详情页');
+});
+
+test('逐字稿去重：只有视频没转写的场次也保留，标 detail 进详情页', () => {
+  const rows = [
+    { fileId: 'v2', name: '只有视频的课', type: 'video', meetingId: '123456789', time: '2026-11-21 09:30', hasVideo: true, size: '18.00MB' },
+  ];
+  const merged = site.mergeTranscriptRows(rows);
+  assert.equal(merged.length, 1, '视频行照样出现在逐字稿标签');
+  assert.equal(merged[0].transcriptVia, 'detail', '导出时进详情页抓逐字稿');
+});
+
+test('逐字稿去重：会议号或时间不同绝不合并，避免导错场次', () => {
+  const rows = [
+    { fileId: 'a', name: 'A视频', type: 'video', meetingId: '111111111', time: '2026-11-20 10:00', hasVideo: true },
+    { fileId: 'b', name: 'B转写', type: 'transcript', meetingId: '222222222', time: '2026-11-20 10:00', hasVideo: false },
+    { fileId: 'c', name: 'C转写', type: 'transcript', meetingId: '111111111', time: '2026-11-22 10:00', hasVideo: false },
+  ];
+  const merged = site.mergeTranscriptRows(rows);
+  assert.equal(merged.length, 3, '会议号不同、时间不同的都不合并');
+});
+
+test('逐字稿去重不改原始行（视频标签还要用），合并结果是浅拷贝', () => {
+  const row = { fileId: 'v3', name: '课', type: 'video', meetingId: '999', time: 't', hasVideo: true };
+  const merged = site.mergeTranscriptRows([row]);
+  assert.notEqual(merged[0], row, '返回的是拷贝');
+  assert.equal(row.transcriptVia, undefined, '原始行没被写上标记');
+  assert.equal(row.type, 'video', '原始行类型没被改');
+});
+
+test('逐字稿分组键：会议号带空格要归一，缺会议号时退回名称+时间', () => {
+  assert.equal(site.transcriptGroupKey({ meetingId: '448 436 389', time: '2026-11-20 10:00' }),
+    'm:448436389|2026-11-20 10:00');
+  assert.equal(site.transcriptGroupKey({ name: '无会议号', time: '2026-11-20 10:00' }),
+    'n:无会议号|2026-11-20 10:00');
+});

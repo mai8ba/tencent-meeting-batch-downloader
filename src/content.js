@@ -1,5 +1,5 @@
 // ============================================================
-// 腾讯会议录制批量下载助手 - content script (v1.8.18)
+// 腾讯会议录制批量下载助手 - content script (v1.8.19)
 // 注入到 https://meeting.tencent.com/user-center/meeting-record
 //
 // 本文件只做"执行引擎"：
@@ -452,13 +452,27 @@
   function filteredItems() {
     const { type, keyword } = state.filter;
     const kw = keyword.trim().toLowerCase();
-    // v1.8.6：按"文件大小"列区分——没大小=纯逐字稿，有 MB 数字=含视频。
-    // 逐字稿：所有行都能导（带视频的行也有逐字稿）；视频：只显示有大小的行。
-    return state.collected.filter((c) => {
-      if (type === 'video' && !c.hasVideo) return false;
-      if (kw && !((c.name || '').toLowerCase().includes(kw) || String(c.meetingId || '').includes(kw))) return false;
-      return true;
-    });
+    // 两个标签（v1.8.19 起去掉"全部"）：
+    //   视频标签   —— 只列有文件大小的视频行；
+    //   逐字稿标签 —— 按 会议号+时间 合并同一场的多行，每场只留一条逐字稿代表行。
+    //                 只有视频没转写的场次也留着（标 transcriptVia=detail，导出进详情页）。
+    // 合并必须在这一层做：勾选/全选/导出都以 filteredItems() 为唯一真相源，
+    // 这样"全选"只会选中合并后的代表行，被合并掉的视频行不会被下载成视频。
+    let rows;
+    if (type === 'transcript') {
+      // 逐字稿标签：按会议号+时间合并，每场只留一条代表行。
+      rows = TMeetSite.mergeTranscriptRows(state.collected);
+    } else if (type === 'video') {
+      // 视频标签：只列有文件大小的视频行。
+      rows = state.collected.filter((c) => c.hasVideo);
+    } else {
+      // 'all' 是内部兼容态（界面已无"全部"按钮）：显示全部原始行，保持历史行为。
+      rows = state.collected;
+    }
+    if (kw) {
+      rows = rows.filter((c) => (c.name || '').toLowerCase().includes(kw) || String(c.meetingId || '').includes(kw));
+    }
+    return rows;
   }
 
   function isExported(item) {
@@ -506,9 +520,18 @@
     return { ...snapshot(), skipped };
   }
 
-  // 获取勾选的文件
+  // 获取勾选的文件，作为导出目标。
+  // v1.8.19：导出目标 = 当前标签下的合并视图 ∩ 勾选集合。这样逐字稿标签下
+  // 同一会议的视频行+转写行只会产出一条代表行（带 transcriptVia 标记），
+  // 不会把视频行也当成独立目标下载。
   function getSelected() {
-    return state.collected.filter(c => state.selected.has(c.fileId));
+    const picked = state.collected.filter(c => state.selected.has(c.fileId));
+    // 逐字稿标签下按会议号+时间合并勾选集：同一场的视频行+转写行只导一条逐字稿。
+    // 视频标签（及内部兼容态 all）保持原样，视频链路零改动。
+    // 注意：这里不按关键字过滤——勾选是用户明确的选择，搜索只是"看哪些"，
+    // 不该让搜一下就把已勾选项从导出目标里抹掉。
+    if (state.filter.type === 'transcript') return TMeetSite.mergeTranscriptRows(picked);
+    return picked;
   }
 
 
@@ -609,9 +632,9 @@
    */
   const TRANSCRIPT_CONCURRENCY = 3; // 同时抓取的详情页数量；开太多 Chrome 会卡、也可能被限流
 
-  async function exportTranscriptsViaDetail() {
+  async function exportTranscriptsViaDetail(targetsArg = null) {
     if (state.exporting || state.collecting) return { started: false, error: '任务正在运行，请先停止' };
-    const targets = getSelected();
+    const targets = targetsArg || getSelected();
     if (!targets.length) return { started: false, error: '还没有勾选任何课程' };
     const total = targets.length;
     let done = 0, failed = 0, lastError = '';
@@ -730,9 +753,9 @@
     return { started: true, total: unique.length, done, failed };
   }
 
-  async function exportSelected() {
+  async function exportSelected(targetsArg = null) {
     if (state.exporting || state.collecting) return { started: false, error: '任务正在运行，请先停止' };
-    const targets = getSelected();
+    const targets = targetsArg || getSelected();
     if (!targets.length) return { started: false, error: '还没有勾选任何课程' };
     const total = targets.length;
     let done = 0, failed = 0, lease = false;
@@ -972,6 +995,47 @@
       void refreshPending(true).then(() => pushLive());
     }
     return failure ? { started: true, total, error: failure } : { started: true, total };
+  }
+
+  /**
+   * v1.8.19 按标签导出编排。
+   *   视频标签     —— 原样走清单页视频导出（视频链路代码零改动）。
+   *   逐字稿标签   —— 导出目标已由 getSelected() 按会议号+时间合并：
+   *     · transcriptVia='list'   （有纯逐字稿行）：清单页直接勾「逐字稿」下载，快路，不进详情页；
+   *     · transcriptVia='detail' （只有视频没转写行）：进该视频详情页抓逐字稿。
+   * 两组必须串行：两个子函数都会设置/清除 state.exporting，并行会互相踩。
+   */
+  async function exportByTag() {
+    const targets = getSelected(); // 合并后的代表行（逐字稿标签下已去重）
+    if (!targets.length) return { started: false, error: '还没有勾选任何课程' };
+
+    if (state.filter.type !== 'transcript') {
+      // 视频标签：完全沿用原视频链路。
+      return exportSelected(targets);
+    }
+
+    const listRows = targets.filter(t => t.transcriptVia !== 'detail');
+    const detailRows = targets.filter(t => t.transcriptVia === 'detail');
+    // 清单页快路：强制按逐字稿类型导出（弹窗勾逐字稿、按逐字稿校验、逐字稿.docx 命名）。
+    // 浅拷贝改 type，不动 state.collected 里的原始行（视频标签还要用）。
+    const asTranscript = listRows.map(t => ({ ...t, type: 'transcript' }));
+
+    let done = 0, failed = 0, firstError = '';
+    if (asTranscript.length) {
+      const r = await exportSelected(asTranscript);
+      done += r.done || 0; failed += r.failed || 0; firstError = firstError || r.error || '';
+    }
+    if (detailRows.length) {
+      const r = await exportTranscriptsViaDetail(detailRows);
+      done += r.done || 0; failed += r.failed || 0; firstError = firstError || r.error || '';
+    }
+    setLive({
+      phase: failed ? 'error' : 'done',
+      message: `逐字稿导出结束：成功 ${done}，失败 ${failed}，共 ${targets.length} 项`
+        + (firstError ? `（${firstError}）` : ''),
+      total: targets.length, done, failed, active: 0, percent: 100,
+    });
+    return { started: true, total: targets.length, done, failed };
   }
 
   // 关闭所有残留的 hover 菜单（对每个更多图标派发 mouseout/mouseleave）
@@ -1321,9 +1385,9 @@
       // 前置条件不通过就直接报错，绝不能回 started:true 让工作台空等。
       const check = await preflightExport();
       if (!check.ok) return { ok: false, error: check.error };
-      // v1.8.8：仅逐字稿走详情页新链路；"全部/仅视频"仍走原视频导出，代码零改动。
-      const runner = state.filter.type === 'transcript' ? exportTranscriptsViaDetail : exportSelected;
-      void runner().catch((e) => log('导出中断', e));
+      // v1.8.19：按标签编排。逐字稿标签下同一会议已合并成一条，
+      // 有纯逐字稿行的走清单页快路，只有视频行的进详情页；视频标签走原链路。
+      void exportByTag().catch((e) => log('导出中断', e));
       return { ok: true, started: true, total: check.total };
     });
     if (action === 'stop') return reply(() => { stopTask(); return { ok: true }; });

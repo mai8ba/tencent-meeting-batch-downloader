@@ -27,7 +27,7 @@
    * 这个版本号让外壳能当场比对并说破："你跑的是旧脚本"。
    * ⚠️ 改动本文件时必须同步改这里（tests/panel.test.cjs 有测试守着）。
    */
-  const BATCH_JS_VERSION = '1.8.18';
+  const BATCH_JS_VERSION = '1.8.19';
   globalThis.__tmeetBatchVersion = BATCH_JS_VERSION;
 
   /** 面板模式下节点在影子根里，所有查询都必须从这里起，document 找不到。 */
@@ -522,10 +522,21 @@
   }
 
   function render() {
+    renderTypeTabs();
     renderStats();
     renderList();
     renderProgress();
     renderHint();
+  }
+
+  /** 两个标签的高亮跟随筛选状态；内部兼容态 'all' 显示为"视频"（界面已无"全部"按钮）。 */
+  function renderTypeTabs() {
+    const group = $('typeFilter');
+    if (!group) return;
+    const active = state.filter.type === 'transcript' ? 'transcript' : 'video';
+    group.querySelectorAll('.seg').forEach((el) => {
+      el.classList.toggle('active', el.dataset.type === active);
+    });
   }
 
   // ------------------------------------------------------------

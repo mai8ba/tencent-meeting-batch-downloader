@@ -30,25 +30,26 @@ test('工作台转义所有插值到 HTML 的文本', () => {
   assert.equal(ui.escapeHtml(123), '123');
 });
 
-test('工作台筛选：类型、关键字、以及录制页给出的权威命中集', () => {
+test('工作台筛选：视频/逐字稿两标签 + 关键字 + 录制页权威命中集', () => {
   const ui = batchUi();
   const items = [
-    { fileId: 'v1', name: '私域变现-视频', type: 'video', meetingId: '628565172' },
-    { fileId: 't1', name: '转写_集体备课', type: 'transcript', meetingId: '312125050' },
-    { fileId: 't2', name: '转写_私域复盘', type: 'transcript', meetingId: '448436389' }
+    { fileId: 'v1', name: '私域变现-视频', type: 'video', hasVideo: true, meetingId: '628565172' },
+    { fileId: 't1', name: '转写_集体备课', type: 'transcript', hasVideo: false, meetingId: '312125050' },
+    { fileId: 't2', name: '转写_私域复盘', type: 'transcript', hasVideo: false, meetingId: '448436389' }
   ];
-  const all = { type: 'all', keyword: '' };
-  assert.deepEqual(ui.visibleItems(items, all, []).map(x => x.fileId), ['v1', 't1', 't2']);
-  // v1.8.6：类型按钮表示"这次导出什么"，不再按名字过滤列表，
-  // 否则名字不带"转写"的录制会被挡住（183 条只挑出 14 条）。
-  assert.deepEqual(ui.visibleItems(items, { type: 'transcript', keyword: '' }, []).map(x => x.fileId), ['v1', 't1', 't2']);
-  assert.deepEqual(ui.visibleItems(items, { type: 'all', keyword: '私域' }, []).map(x => x.fileId), ['v1', 't2']);
+  // 视频标签：只列有视频的行（本地兜底过滤；权威集合仍来自录制页）
+  assert.deepEqual(ui.visibleItems(items, { type: 'video', keyword: '' }, []).map(x => x.fileId), ['v1']);
+  // 逐字稿标签：本地不按 hasVideo 过滤，由录制页给出的权威 fileId 集合决定显示哪些
+  assert.deepEqual(ui.visibleItems(items, { type: 'transcript', keyword: '' }, []).map(x => x.fileId),
+    ['v1', 't1', 't2']);
+  // 权威集合说只有 t1 时，逐字稿标签本地不能把别的显示出来
+  assert.deepEqual(ui.visibleItems(items, { type: 'transcript', keyword: '' }, ['t1']).map(x => x.fileId), ['t1']);
+  // 关键字搜索照常工作
+  assert.deepEqual(ui.visibleItems(items, { type: 'transcript', keyword: '私域' }, []).map(x => x.fileId), ['v1', 't2']);
   // 会议号也能搜
-  assert.deepEqual(ui.visibleItems(items, { type: 'all', keyword: '312125' }, []).map(x => x.fileId), ['t1']);
-  // 录制页说只命中 t1 时，本地即便关键字为空也不能把别的显示出来
-  assert.deepEqual(ui.visibleItems(items, all, ['t1']).map(x => x.fileId), ['t1']);
+  assert.deepEqual(ui.visibleItems(items, { type: 'transcript', keyword: '312125' }, []).map(x => x.fileId), ['t1']);
   // 关键字大小写与前后空格不影响结果
-  assert.deepEqual(ui.visibleItems(items, { type: 'all', keyword: '  私域  ' }, []).length, 2);
+  assert.equal(ui.visibleItems(items, { type: 'transcript', keyword: '  私域  ' }, []).length, 2);
 });
 
 test('进度百分比按文件个数算，且始终落在 0–100', () => {
@@ -149,28 +150,27 @@ test('snapshot 一次带回清单、勾选、筛选、已下载和进度', async
   assert.equal(snap.live.phase, 'idle');
 });
 
-test('v1.8.14 切类型按钮只筛类目：不替用户勾选，也不改写行的真实类型', async () => {
+test('v1.8.19 切标签只筛类目：不替用户勾选，不改行真实类型；逐字稿按会议合并', async () => {
   const h = harness();
   h.api.state.collected = [
-    { fileId: 'v1', name: '玫子', type: 'video', hasVideo: true },      // 视频+逐字稿
-    { fileId: 't1', name: '转写_玫子', type: 'transcript', hasVideo: false } // 只有逐字稿
+    { fileId: 'v1', name: '玫子', type: 'video', hasVideo: true, meetingId: '448436389', time: '2026-11-20 10:00' },      // 视频+逐字稿
+    { fileId: 't1', name: '转写_玫子', type: 'transcript', hasVideo: false, meetingId: '448436389', time: '2026-11-20 10:00' } // 同场逐字稿
   ];
-  // 用户只勾了纯逐字稿那一项，然后切类目
   h.api.state.selected = new Set(['t1']);
 
   const transcript = await h.send('filter', { filterType: 'transcript' });
-  assert.deepEqual([...transcript.selected], ['t1'], '切"仅逐字稿"不能自动勾上视频行');
-  assert.deepEqual([...transcript.filtered].sort(), ['t1', 'v1'], '两种行都含逐字稿，都可见');
-  assert.equal(h.api.state.collected[0].type, 'video', '含视频的行类型保持真实，不被筛选改写');
+  assert.deepEqual([...transcript.selected], ['t1'], '切"逐字稿"不能自动勾上别的行');
+  assert.deepEqual([...transcript.filtered], ['t1'], '同会议两行合并成一条逐字稿代表行');
+  assert.equal(h.api.state.collected[0].type, 'video', '原始行类型保持真实，不被筛选改写');
 
   const video = await h.send('filter', { filterType: 'video' });
-  assert.deepEqual([...video.selected], ['t1'], '切"仅视频"同样不改勾选');
-  assert.deepEqual([...video.filtered], ['v1'], '仅视频：纯逐字稿行不可见');
+  assert.deepEqual([...video.selected], ['t1'], '切"视频"同样不改勾选');
+  assert.deepEqual([...video.filtered], ['v1'], '视频标签：只列有视频的行');
   assert.equal(h.api.state.collected[0].type, 'video', '类型仍保持真实');
 
+  // 旧草稿的 'all' 是内部兼容态：显示全部原始行（界面不再有"全部"按钮）
   const all = await h.send('filter', { filterType: 'all' });
-  assert.deepEqual([...all.selected], ['t1'], '切"全部"也不改勾选');
-  assert.deepEqual([...all.filtered].sort(), ['t1', 'v1'], '全部：都可见');
+  assert.deepEqual([...all.filtered].sort(), ['t1', 'v1'], '兼容旧值 all：显示全部行');
 });
 
 test('关键字筛选不改勾选；非法类型被忽略', async () => {

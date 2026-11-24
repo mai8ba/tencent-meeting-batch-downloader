@@ -213,7 +213,7 @@ test('扩展 manifest 不要写死 key：没有 key 时重新加载扩展 ID 会
   assert.equal(manifest.key, undefined, 'manifest 里不要写 key（会锁死扩展 ID，调试期反而碍事）');
 });
 
-test('v1.8.18 抽屉形态：贴边把手 + 右侧滑出，而不是铺满整页', () => {
+test('v1.8.19 抽屉形态：贴边把手 + 右侧滑出，而不是铺满整页', () => {
   const src = read('panel.js');
   const css = read('panel.css');
   assert.match(src, /ws-handle/, '必须有贴边的把手');
@@ -240,7 +240,7 @@ test('把手点得开：开门 class 在影子上，CSS 必须穿过影子墙去
     '裸 .ws-open .ws-drawer 在影子里匹配不到宿主，抽屉会永远藏在屏幕外');
 });
 
-test('v1.8.18 采集完成不再自动弹抽屉，只在把手上挂角标', () => {
+test('v1.8.19 采集完成不再自动弹抽屉，只在把手上挂角标', () => {
   const src = read('content.js');
   const at = src.indexOf('TMeetPanel?.setBadge');
   assert.ok(at > 0, '采集完应该走 setBadge');
@@ -262,7 +262,7 @@ test('清单区不能被上面几块挤没：body 可滚 + 清单保底高度 + 
     '四步要压成两列，别竖着排吃掉 300px');
 });
 
-test('v1.8.18 开源版：没有试用、没有激活码、不联网校时', () => {
+test('v1.8.19 开源版：没有试用、没有激活码、不联网校时', () => {
   const license = read('license.js');
   const bg = read('background.js');
   assert.match(license, /active:\s*true/, '授权必须恒为放行');

@@ -823,3 +823,31 @@ test('录制页不可见时：先让后台把页面切到前台，再继续导�
   assert.ok(calls.includes('prepare'), '切到前台后必须继续导出，而不是直接失败');
   assert.equal(result.started, true, '不应因为页面不可见就判定失败');
 });
+
+test('v1.8.19 逐字稿标签：同会议两行合并，全选只选代表行、导出目标不重复不落视频', async () => {
+  const c = content();
+  c.api.state.collected = [
+    { fileId: 'v1', name: '玫子', type: 'video', hasVideo: true, meetingId: '448436389', time: '2026-11-20 10:00', size: '24MB' },
+    { fileId: 't1', name: '转写_玫子', type: 'transcript', hasVideo: false, meetingId: '448436389', time: '2026-11-20 10:00' },
+    { fileId: 'v2', name: '只有视频的课', type: 'video', hasVideo: true, meetingId: '123456789', time: '2026-11-21 09:30', size: '18MB' }
+  ];
+  c.api.state.filter.type = 'transcript';
+
+  // 逐字稿标签：3 行合并成 2 条代表行（有转写的那份 + 只有视频的那份）
+  const snap = c.api.snapshot();
+  assert.equal(snap.filtered.length, 2, '同会议视频行+转写行合成一条');
+  assert.ok(!snap.filtered.includes('v1'), '被合并掉的视频行不在可见集里');
+
+  // 全选只勾代表行，绝不勾被合并掉的视频行
+  c.api.applySelect({ mode: 'all' });
+  assert.deepEqual([...c.api.state.selected].sort(), ['t1', 'v2']);
+
+  // 导出目标 = 合并后的两条：一条走清单页快路(list)，一条走详情页(detail)
+  const targets = c.api.getSelected();
+  assert.equal(targets.length, 2, '导出目标已去重');
+  const viaList = targets.find(x => x.fileId === 't1');
+  const viaDetail = targets.find(x => x.fileId === 'v2');
+  assert.equal(viaList.transcriptVia, 'list', '有转写行走清单页快路');
+  assert.equal(viaDetail.transcriptVia, 'detail', '只有视频的进详情页');
+  assert.equal(c.api.state.collected[0].type, 'video', '原始视频行未被改写');
+});

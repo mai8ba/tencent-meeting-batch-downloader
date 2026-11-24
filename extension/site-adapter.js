@@ -130,6 +130,49 @@
     return /\d+(?:\.\d+)?\s*(?:MB|GB|KB)/i.test(String(size == null ? '' : size));
   }
 
+  /**
+   * 逐字稿标签的分组键：同一场录制在列表里常有两行 ——
+   *   「转写_玫子」（无大小=纯逐字稿）与「玫子」（有大小=视频+逐字稿），会议号、时间相同。
+   * 两者会议号+时间都一样 ⇒ 同一份，只导一条逐字稿即可。
+   * 会议号缺失时退化为「名称+时间」；什么都没有就不合并，避免把不同场次误并。
+   */
+  function transcriptGroupKey(item) {
+    const meeting = String(item?.meetingId || '').replace(/\s/g, '');
+    const time = String(item?.time || '').trim();
+    if (meeting && time) return `m:${meeting}|${time}`;
+    if (meeting) return `m:${meeting}`;
+    if (time && item?.name) return `n:${item.name}|${time}`;
+    return `id:${item?.fileId || ''}`;
+  }
+
+  const rowHasVideo = (item) => item && (item.hasVideo === true || (item.hasVideo === undefined && hasVideo(item.size)));
+
+  /**
+   * 逐字稿标签去重：按 会议号+时间 合并同一场的多行，每组只留一条代表行。
+   * 优先保留「纯逐字稿行」（无视频）——点它的导出菜单直接拿到逐字稿文件，
+   * 不必进详情页，也不会误下成视频。
+   *
+   * 只有视频、没有转写行的场次（用户确认这种情况可能存在）：代表行就是视频行，
+   * 照样留在逐字稿标签里，但标 transcriptVia='detail' —— 导出时进它的详情页抓逐字稿。
+   * 纯逐字稿行标 'list' —— 清单页直接导出。
+   *
+   * 返回浅拷贝，不改动采集清单里的原始行（原始行还要给"视频"标签用）。
+   */
+  function mergeTranscriptRows(items) {
+    const groups = new Map();
+    for (const item of (Array.isArray(items) ? items : [])) {
+      const key = transcriptGroupKey(item);
+      const prev = groups.get(key);
+      if (!prev) { groups.set(key, item); continue; }
+      // 已经选中了纯逐字稿行就不再替换；只有当前是视频行、来的是逐字稿行时才升级。
+      if (rowHasVideo(prev) && !rowHasVideo(item)) groups.set(key, item);
+    }
+    return [...groups.values()].map((item) => ({
+      ...item,
+      transcriptVia: rowHasVideo(item) ? 'detail' : 'list',
+    }));
+  }
+
   /** 中文标签，用于下载重命名与界面徽标 */
   function kindLabel(name, mime) {
     return classify(name, mime) === 'transcript' ? '逐字稿' : '视频';
@@ -149,5 +192,5 @@
     return /wordprocessingml/.test(String(mime || '')) ? 'docx' : 'mp4';
   }
 
-  globalThis.TMeetSite = Object.freeze({ s, text, classify, classifyRecording, hasVideo, kindLabel, isTranscriptExt, extensionOf });
+  globalThis.TMeetSite = Object.freeze({ s, text, classify, classifyRecording, hasVideo, transcriptGroupKey, mergeTranscriptRows, kindLabel, isTranscriptExt, extensionOf });
 })();
