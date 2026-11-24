@@ -213,7 +213,7 @@ test('扩展 manifest 不要写死 key：没有 key 时重新加载扩展 ID 会
   assert.equal(manifest.key, undefined, 'manifest 里不要写 key（会锁死扩展 ID，调试期反而碍事）');
 });
 
-test('v1.8.16 抽屉形态：贴边把手 + 右侧滑出，而不是铺满整页', () => {
+test('v1.8.17 抽屉形态：贴边把手 + 右侧滑出，而不是铺满整页', () => {
   const src = read('panel.js');
   const css = read('panel.css');
   assert.match(src, /ws-handle/, '必须有贴边的把手');
@@ -222,11 +222,25 @@ test('v1.8.16 抽屉形态：贴边把手 + 右侧滑出，而不是铺满整页
   assert.match(src, /classList\.remove\('ws-open'\)/, '关闭要移除 class');
   assert.doesNotMatch(src, /style\.display\s*=\s*'none'/, '不能再用 display:none 整体隐藏（那样把手也看不见了）');
   assert.match(css, /\.ws-drawer[\s\S]{0,400}?translateX\(100%\)/, '抽屉默认在视口外，点开才滑进来');
-  assert.match(css, /\.ws-open \.ws-drawer[\s\S]{0,80}?translateX\(0\)/, '打开时滑到屏幕内');
+  assert.match(css, /:host\(\.ws-open\) \.ws-drawer[\s\S]{0,80}?translateX\(0\)/, '打开时滑到屏幕内');
   assert.match(css, /writing-mode:\s*vertical-rl/, '把手文字竖排');
 });
 
-test('v1.8.16 采集完成不再自动弹抽屉，只在把手上挂角标', () => {
+test('把手点得开：开门 class 在影子上，CSS 必须穿过影子墙去认它', () => {
+  // 真机事故复盘：class 加在 host（影子外），CSS 却写裸 .ws-open .ws-drawer
+  // （只在影子树内找祖先），两端隔着影子墙对不上，点把手抽屉纹丝不动。
+  // 下面四条把两端锁死，防止以后只改一边又复发。
+  const src = read('panel.js');
+  const css = read('panel.css');
+  assert.match(src, /host\.classList\.add\('ws-open'\)/, '开门记号加在影子宿主上');
+  assert.match(src, /host\.classList\.remove\('ws-open'\)/, '关门时摘掉记号');
+  assert.match(css, /:host\(\.ws-open\) \.ws-drawer[\s\S]{0,80}?translateX\(0\)/,
+    '影子内样式必须用 :host(.ws-open) 才能匹配宿主');
+  assert.doesNotMatch(css, /(?<!\()\.ws-open \.ws-drawer/,
+    '裸 .ws-open .ws-drawer 在影子里匹配不到宿主，抽屉会永远藏在屏幕外');
+});
+
+test('v1.8.17 采集完成不再自动弹抽屉，只在把手上挂角标', () => {
   const src = read('content.js');
   const at = src.indexOf('TMeetPanel?.setBadge');
   assert.ok(at > 0, '采集完应该走 setBadge');
@@ -235,7 +249,7 @@ test('v1.8.16 采集完成不再自动弹抽屉，只在把手上挂角标', () 
   assert.doesNotMatch(near, /TMeetPanel\.open\(\)/, '采集完成不应自动展开工作台');
 });
 
-test('v1.8.16 开源版：没有试用、没有激活码、不联网校时', () => {
+test('v1.8.17 开源版：没有试用、没有激活码、不联网校时', () => {
   const license = read('license.js');
   const bg = read('background.js');
   assert.match(license, /active:\s*true/, '授权必须恒为放行');

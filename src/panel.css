@@ -14,7 +14,7 @@
   pointer-events: none;
   transition: opacity 0.22s ease;
 }
-.ws-open .ws-backdrop { opacity: 1; pointer-events: auto; }
+:host(.ws-open) .ws-backdrop { opacity: 1; pointer-events: auto; }
 
 /* 贴在屏幕右边缘的竖排把手 */
 .ws-handle {
@@ -44,7 +44,7 @@
 .ws-handle:hover { background: #f4f8ff; }
 .ws-handle:focus-visible { outline: 2px solid var(--brand, #1f6feb); outline-offset: 2px; }
 /* 抽屉打开后把手让位，避免和抽屉叠在一起 */
-.ws-open .ws-handle { opacity: 0; pointer-events: none; transform: translateY(-50%) translateX(10px); }
+:host(.ws-open) .ws-handle { opacity: 0; pointer-events: none; transform: translateY(-50%) translateX(10px); }
 
 /* 抽屉本体：从右边滑出 */
 .ws-drawer {
@@ -62,7 +62,7 @@
   transition: transform 0.24s cubic-bezier(0.32, 0.72, 0, 1);
   will-change: transform;
 }
-.ws-open .ws-drawer { transform: translateX(0); }
+:host(.ws-open) .ws-drawer { transform: translateX(0); }
 
 .ws-head {
   display: flex;

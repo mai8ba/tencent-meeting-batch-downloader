@@ -1,5 +1,5 @@
 // ============================================================
-// 腾讯会议录制批量下载助手 - content script (v1.8.16)
+// 腾讯会议录制批量下载助手 - content script (v1.8.17)
 // 注入到 https://meeting.tencent.com/user-center/meeting-record
 //
 // 本文件只做"执行引擎"：
