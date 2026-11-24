@@ -213,7 +213,7 @@ test('扩展 manifest 不要写死 key：没有 key 时重新加载扩展 ID 会
   assert.equal(manifest.key, undefined, 'manifest 里不要写 key（会锁死扩展 ID，调试期反而碍事）');
 });
 
-test('v1.8.17 抽屉形态：贴边把手 + 右侧滑出，而不是铺满整页', () => {
+test('v1.8.18 抽屉形态：贴边把手 + 右侧滑出，而不是铺满整页', () => {
   const src = read('panel.js');
   const css = read('panel.css');
   assert.match(src, /ws-handle/, '必须有贴边的把手');
@@ -240,7 +240,7 @@ test('把手点得开：开门 class 在影子上，CSS 必须穿过影子墙去
     '裸 .ws-open .ws-drawer 在影子里匹配不到宿主，抽屉会永远藏在屏幕外');
 });
 
-test('v1.8.17 采集完成不再自动弹抽屉，只在把手上挂角标', () => {
+test('v1.8.18 采集完成不再自动弹抽屉，只在把手上挂角标', () => {
   const src = read('content.js');
   const at = src.indexOf('TMeetPanel?.setBadge');
   assert.ok(at > 0, '采集完应该走 setBadge');
@@ -249,7 +249,20 @@ test('v1.8.17 采集完成不再自动弹抽屉，只在把手上挂角标', () 
   assert.doesNotMatch(near, /TMeetPanel\.open\(\)/, '采集完成不应自动展开工作台');
 });
 
-test('v1.8.17 开源版：没有试用、没有激活码、不联网校时', () => {
+test('清单区不能被上面几块挤没：body 可滚 + 清单保底高度 + 步骤两列', () => {
+  // 真机事故：四步竖排约 300px，加顶栏/说明/搜索条，窗口一矮清单区就被压到 0，
+  // 197 项一起看不见，用户以为"没采集到"。三条约束缺一不可。
+  const shell = read('panel.css');
+  const css = read('batch.css');
+  assert.match(shell, /\.ws-body[\s\S]{0,500}?overflow-y:\s*auto/,
+    '抽屉内容必须能上下滚，否则矮窗口看不到清单');
+  assert.match(css, /\.ws-body \.list-wrap[\s\S]{0,80}?min-height:/,
+    '清单区要有保底高度，至少露出两行');
+  assert.match(css, /\.ws-body \.stepbar[\s\S]{0,160}?grid-template-columns:\s*1fr 1fr/,
+    '四步要压成两列，别竖着排吃掉 300px');
+});
+
+test('v1.8.18 开源版：没有试用、没有激活码、不联网校时', () => {
   const license = read('license.js');
   const bg = read('background.js');
   assert.match(license, /active:\s*true/, '授权必须恒为放行');

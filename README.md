@@ -2,7 +2,7 @@
 
 在腾讯会议「我的录制」页里，**贴边一个抽屉**，批量把录制视频和逐字稿下载到本地。
 
-- 版本：v1.8.17
+- 版本：v1.8.18
 - 协议：[MIT](LICENSE) —— **完全免费，没有任何使用限制**（无试用期、无激活码、不联网校时）
 - 平台：Chrome / Edge（Manifest V3 扩展）
 
@@ -24,7 +24,7 @@
 
 ### 方式一：拖 zip（最快）
 
-1. 到 [Releases](https://github.com/mai8ba/tencent-meeting-batch-downloader/releases) 下载 `tencent-meeting-batch-downloader-v1.8.17.zip`
+1. 到 [Releases](https://github.com/mai8ba/tencent-meeting-batch-downloader/releases) 下载 `tencent-meeting-batch-downloader-v1.8.18.zip`
 2. 打开 `chrome://extensions`
 3. 右上角打开「开发者模式」
 4. 把 zip **直接拖进页面**

@@ -577,13 +577,18 @@ body {
 }
 .ws-body .topbar .top-actions { margin-left: 0; }
 .ws-body .brand-text .sub { max-width: 100%; white-space: normal; }
+/* 四步改成 2×2 网格：竖着一条会吃掉约 300px，窗口一矮就把清单整个挤没。 */
 .ws-body .stepbar {
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   align-items: stretch;
   gap: 6px;
   padding: 10px 14px;
 }
 .ws-body .step { width: 100%; }
+/* 停止按钮独占整行，排在四步后面 */
+.ws-body .stepbar .spacer { display: none; }
+.ws-body .stepbar #btnStop { grid-column: 1 / -1; }
 .ws-body .step-text em { max-width: none; }
 .ws-body .noticebar { padding: 8px 14px; }
 .ws-body .selectbar {
@@ -595,5 +600,8 @@ body {
 .ws-body .selectbar .hint { margin-left: 0; width: 100%; text-align: left; }
 .ws-body .progress { padding: 8px 14px; flex-wrap: wrap; }
 .ws-body .item { padding: 10px 14px; }
+/* 清单区保底高度：再矮的窗口也至少露出两行，不至于看起来"清单没加载出来"。
+   .ws-body 可上下滚（见 panel.css），上半部分固定、清单自己也能滚。 */
+.ws-body .list-wrap { min-height: 230px; }
 .ws-body .list-more { padding: 12px 14px; }
 .ws-body .empty { padding: 48px 16px; }

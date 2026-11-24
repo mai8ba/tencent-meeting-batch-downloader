@@ -121,7 +121,10 @@
   display: flex;
   flex-direction: column;
   background: var(--bg, #f5f6f8);
-  overflow: hidden;
+  /* 内容比抽屉高时要能上下滚：窗口一矮，清单就会被上面几块挤到 0 高、完全看不见。
+     2026-11-24 真机事故：四步竖排 + 说明 + 搜索条占满屏幕，197 项清单一条都不显示。 */
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* 面板头已经有标题，工作台顶栏的重复标题就不再显示（副标题"已连接…"保留，有用） */
