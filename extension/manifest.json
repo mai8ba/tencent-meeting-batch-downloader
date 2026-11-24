@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "腾讯会议录制批量下载助手",
-  "version": "1.8.19",
+  "version": "1.8.20",
   "description": "腾讯会议批量下载：网页工作台里采集、筛选、勾选、导出，本地正文校验、断点续导。MIT 开源，免费无限制。",
   "permissions": [
     "downloads",

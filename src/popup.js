@@ -68,17 +68,8 @@ async function send(op, extra = {}) {
   return result;
 }
 
-// 工作台是主界面：采集、筛选、勾选、导出都在那边，popup 只做入口。
-// 优先开在录制页里的面板：录制页保持前台，导出才不会被浏览器的
-// 后台标签页节流 / Memory Saver 冻结拖到"看着像卡死"。
-document.getElementById('open-batch').addEventListener('click', async () => {
-  try {
-    const res = await send('open-panel');
-    if (res?.mode === 'tab' && res.url) await chrome.tabs.create({ url: res.url, active: true });
-    window.close();
-  } catch (e) { flash(e.message); }
-});
-
+// "打开腾讯会议官网"：按钮文案按用户要求改，实际仍打开「我的录制」页——
+// 插件的工作台就贴在这一页右侧，直接落到能用的地方，不用用户再多点一次。
 document.getElementById('open-recordings').addEventListener('click', async () => {
   try { await send('open-recordings'); window.close(); }
   catch (e) { flash(e.message); }
