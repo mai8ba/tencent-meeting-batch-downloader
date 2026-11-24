@@ -1,5 +1,5 @@
 // ============================================================
-// 腾讯会议录制批量下载助手 - content script (v1.8.23)
+// 腾讯会议录制批量下载助手 - content script (v1.8.24)
 // 注入到 https://meeting.tencent.com/user-center/meeting-record
 //
 // 本文件只做"执行引擎"：
@@ -760,7 +760,12 @@
     const total = targets.length;
     let done = 0, failed = 0, lease = false;
     // 同 collect()：终态要等 state.exporting 清掉之后再推，否则工作台会读回 busy:true 卡死。
-    let outcome = null, failure = '', unclicked = null;
+    let outcome = null, failure = '';
+    // 【v1.8.24】失败明细必须带出去。
+    // 原来只返回 {started,total}，按标签导出时"清单页快路"的成功/失败数全被当成 0——
+    // 现场就是 150 项显示「成功 32，失败 5」，剩下 113 项跑成什么样用户完全不知道。
+    const failedItems = [];
+    const unclickedItems = []; // prepare 写了记录但菜单没点下去，收尾要逐条撤回
     const active = new Map();
     const transfers = new Map();
     // 进度按"已处理文件个数"推进：视频大小差几十倍，按字节算会长时间停在 1%。
@@ -816,6 +821,7 @@
           state.selected.delete(target.fileId); changed = true;
         } else {
           failed++; target.exportError = result.results?.map(r => r.reason).join('；') || '下载未通过本地校验';
+          failedItems.push({ fileId: target.fileId, name: target.name, code: 'verify-failed', reason: target.exportError });
           if (item?.state === 'complete') throw new Error(target.name + '：' + target.exportError + '，已停止后续导出，请核对浏览器下载列表');
           if (item?.state === 'interrupted') throw new Error('下载中断：' + (item.error || '请检查网络与服务器状态') + '；已保留断点，请稍后继续');
         }
@@ -870,6 +876,7 @@
         if (result.state === 'uncertain') {
           failed++;
           target.exportError = '上次点击后下载结果不明，已跳过；请到“全量校验 / 续导”核对';
+          failedItems.push({ fileId: target.fileId, name: target.name, code: 'uncertain', reason: target.exportError });
           await saveDraft();
           show();
           continue;
@@ -894,6 +901,11 @@
       }
 
       // 阶段 2：只处理校验没过或需要续传的项。
+      // 【v1.8.24】连续点不开菜单就熔断。
+      // 录制页一直不在前台时，每项都要白等一轮 hover（5 秒起），上百项就是十几分钟。
+      // 连续 5 项都抓不到菜单，说明是环境问题（不是个别行的问题），停下来说清原因。
+      let consecutiveMiss = 0;
+      const MISS_LIMIT = 5;
       for (const entry of pending) {
         const target = entry.target;
         let result = entry.result;
@@ -922,6 +934,7 @@
           // 列表在操作期间被服务端重排/筛选过：明确记在课程上，不能让用户只看到"失败 N"。
           failed++;
           target.exportError = `第 ${pageNo} 页未找到该课程（列表可能已变化），请重新采集`;
+          failedItems.push({ fileId: target.fileId, name: target.name, code: 'row-missing', reason: target.exportError });
           await saveDraft(); show(); continue;
         }
         // 在点击之前记录下载快照，防止小文件瞬间下载完导致漏报。
@@ -931,16 +944,28 @@
         catch (e) {
           log('触发导出异常', e);
           target.exportError = e.message;
-          if (!e.exportRequested) unclicked = target;
+          if (!e.exportRequested) unclickedItems.push(target);
           throw e;
         }
         if (!clicked) {
           // 根本没点下去，不能记成"已点击但结果不明"：留着 pending 会让这门课以后每次导出都被跳过。
-          unclicked = target;
+          unclickedItems.push(target);
+          failed++;
           target.exportError = '更多菜单未找到可点击的“导出”，本次没有发送导出点击' +
             (document.visibilityState === 'hidden' ? '（录制页当时不在前台，站点菜单不会弹出：请保持「我的录制」页面在前台再导出）' : '');
-          throw new Error(target.exportError + '；请查看录制页当前菜单');
+          failedItems.push({ fileId: target.fileId, name: target.name, code: 'menu-miss', reason: target.exportError });
+          await saveDraft(); show();
+          // 【v1.8.24】单项点不开不再让整批崩。
+          // 现场：150 项里第 38 项遇到页面被切到后台，throw 直接收工，
+          // 后面 112 项一项没跑，前面跑完的成功数还因为返回值缺字段被算成 0。
+          // 现在改成"记这一项失败，继续下一项"，并靠连续 miss 熔断兜住真正的环境问题。
+          if (++consecutiveMiss >= MISS_LIMIT) {
+            throw new Error(`连续 ${MISS_LIMIT} 项都打不开导出菜单（多半是录制页被切到了后台）。已停止，完成 ${done} 项、失败 ${failed} 项；`
+              + '请把「我的录制」页面留在前台（窗口不要最小化）后点「继续」接着导');
+          }
+          continue;
         }
+        consecutiveMiss = 0;
         let download = null;
         const deadline = performance.now() + 90000;
         while (performance.now() < deadline) {
@@ -959,9 +984,23 @@
       }
       let lastProgress = performance.now();
       while (active.size) { const count = active.size; await refresh(); if (active.size < count) lastProgress = performance.now(); if (performance.now() - lastProgress > 30 * 60000) throw new Error('下载等待超过30分钟，已保存进度，请检查网络后继续'); if (active.size) await sleep(500); }
+      // 【v1.8.24】终态要说清"为什么失败"。
+      // 原来只报「任务结束：成功 0，失败 1」，用户既不知道是菜单没弹出、还是这课本来就没逐字稿。
+      const firstFail = failedItems[0];
+      const failTip = firstFail
+        ? `；首个失败原因：${firstFail.name} — ${String(firstFail.reason || '').slice(0, 140)}`
+        : '';
+      const allUncertain = failed > 0 && failedItems.length === failed &&
+        failedItems.every(x => x.code === 'uncertain');
       outcome = !pending.length && failed
-        ? { phase: 'error', message: `未发送新下载：${failed} 项因上次点击后结果不明被跳过，请先核对文件并点「允许重试」`, total, done, failed, active: 0, percent: 100 }
-        : { phase: 'done', message: `任务结束：成功 ${done}，失败 ${failed}，共 ${total} 项`, total, done, failed, active: 0, percent: 100 };
+        ? {
+            phase: 'error',
+            message: allUncertain
+              ? `未发送新下载：${failed} 项因上次点击后结果不明被跳过，请先核对文件并点「允许重试」`
+              : `未发送新下载：${failed} 项被跳过${failTip}`,
+            total, done, failed, active: 0, percent: 100,
+          }
+        : { phase: 'done', message: `任务结束：成功 ${done}，失败 ${failed}，共 ${total} 项${failTip}`, total, done, failed, active: 0, percent: 100 };
     } catch (e) {
       log('导出停止', e);
       state.stopped = true;
@@ -976,8 +1015,9 @@
       if (lease) { try { if (state.stopped) await rpc('stop-batch'); await rpc('release'); } catch (e) { log(e); } }
       // 后台禁止运行时解除待核对，必须在释放租约后撤回确定未点击的记录。
       // 已点击菜单/确认按钮但结果未知时保留记录，避免下一次重复下载。
-      if (unclicked) {
-        try { await rpc('journal.clear-pending', { scope: 'own', fileId: unclicked.fileId, kind: unclicked.type }); }
+      // 【v1.8.24】原来是单个 unclicked，改成逐条清：一次导出可能有多项都没点下去。
+      for (const item of unclickedItems) {
+        try { await rpc('journal.clear-pending', { scope: 'own', fileId: item.fileId, kind: item.type }); }
         catch (e) {
           const why = e?.contextInvalidated
             ? '扩展刚被重新加载，页面里的插件已失效（请按 F5 刷新本页）'
@@ -994,7 +1034,12 @@
       // 这一批可能新产生/解除了待核对记录，重新拉一次列表给工作台。
       void refreshPending(true).then(() => pushLive());
     }
-    return failure ? { started: true, total, error: failure } : { started: true, total };
+    // 【v1.8.24】必须把 done/failed/failedItems 带回去。
+    // 少了这三个字段，按标签导出时这一整组的战果会被算成 0（就是 150 项只报「成功 32」的根因）。
+    return {
+      started: true, total, done, failed, failedItems,
+      ...(failure ? { error: failure } : {}),
+    };
   }
 
   /**
@@ -1021,18 +1066,40 @@
     const asTranscript = listRows.map(t => ({ ...t, type: 'transcript' }));
 
     let done = 0, failed = 0, firstError = '';
+    let menuMissed = 0;
     if (asTranscript.length) {
       const r = await exportSelected(asTranscript);
       done += r.done || 0; failed += r.failed || 0; firstError = firstError || r.error || '';
+      // 【v1.8.24】清单页快路点不开菜单的项，自动改走详情页抓。
+      // 逐字稿数据本身在详情页接口里也有一份，不必非得点「更多 → 导出」。
+      // 站点菜单靠 hover 渲染、页面一被切后台就弹不出来，这条兜底能让整批不至于白跑。
+      const menuMiss = (r.failedItems || []).filter(x => x.code === 'menu-miss');
+      menuMissed = menuMiss.length;
+      if (menuMiss.length) {
+        const retryIds = new Set(menuMiss.map(x => x.fileId));
+        const retry = asTranscript.filter(t => retryIds.has(t.fileId))
+          .map(t => ({ ...t, transcriptVia: 'detail' }));
+        // 先按"这 N 项还没算完成"退回失败数，再由降级结果重新计。
+        failed -= retry.length;
+        const r2 = await exportTranscriptsViaDetail(retry);
+        done += r2.done || 0;
+        failed += r2.failed || 0;
+        if (r2.done) firstError = `其中 ${r2.done} 项因站点菜单没弹出，已自动改从详情页抓取成功`;
+      }
     }
     if (detailRows.length) {
       const r = await exportTranscriptsViaDetail(detailRows);
       done += r.done || 0; failed += r.failed || 0; firstError = firstError || r.error || '';
     }
+    // 数字必须对得上总数：done + failed 应该等于 targets.length。
+    const unaccounted = targets.length - done - failed;
+    if (unaccounted > 0) failed += unaccounted; // 兜底：异常中止时别让用户以为"没跑的就等于成功"
     setLive({
       phase: failed ? 'error' : 'done',
       message: `逐字稿导出结束：成功 ${done}，失败 ${failed}，共 ${targets.length} 项`
-        + (firstError ? `（${firstError}）` : ''),
+        + (menuMissed ? `（其中 ${menuMissed} 项站点菜单没弹出）` : '')
+        + (firstError ? `；${firstError}` : '')
+        + (unaccounted > 0 ? `；另有 ${unaccounted} 项未开始，可点「继续」接着导` : ''),
       total: targets.length, done, failed, active: 0, percent: 100,
     });
     return { started: true, total: targets.length, done, failed };
@@ -1077,11 +1144,22 @@
     };
 
     let lastOldVisible = new Set();
-    const menuDeadline = performance.now() + 5000;
+    // 【v1.8.24】改成 let：等页面回到前台会消耗掉这 5 秒预算，
+    // 回来后必须重新计时，否则"人回来了但预算已用完"还是会判菜单没弹出。
+    let menuDeadline = performance.now() + 5000;
     // hover 触发菜单（重试2次）
     for (let attempt = 0; attempt < 2; attempt++) {
       checkStopped();
       if (performance.now() >= menuDeadline) break;
+      // 【v1.8.24】进循环后再确认一次前台状态。
+      // 页面可能在开头那次检查之后、hover 之前被切走（用户切窗口/最小化/切标签），
+      // 这时 hover 派发出去等于打空——现场 pageHidden:true、matched:0 就是这么来的。
+      if (!isVisible()) {
+        const back = await waitForVisible(30000, '导出');
+        if (!back) return false; // 交给调用方：这一项记"菜单没弹出"，继续下一项
+        checkStopped();
+        menuDeadline = performance.now() + 5000; // 重新给一轮预算
+      }
       setLive({ phase: 'exporting', message: `正在打开导出菜单（第 ${attempt + 1}/2 次）：${target.name}` });
       // 每次重试前先关闭所有残留菜单，避免点到上一行的旧菜单
       closeAllMenus();
@@ -1140,6 +1218,8 @@
     {
       closeAllMenus();
       await sleep(300);
+      // 【v1.8.24】兜底点击同样要求页面在前台：后台页点出来的菜单也是不渲染的。
+      if (!isVisible()) return false;
       try { more.click(); } catch (e) { log('点击更多图标异常', e); }
       for (let i = 0; i < 8; i++) {
         await sleep(200);

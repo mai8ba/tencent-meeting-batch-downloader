@@ -160,9 +160,13 @@ function content(options = {}) {
   vm.runInContext(fs.readFileSync(path.join(root, 'site-adapter.js'), 'utf8'), ctx);
   const end = source.lastIndexOf("  if (document.readyState === 'loading')");
   vm.runInContext(source.slice(0, end) + `
-    globalThis.api = { state, parseRow, getSelected, waitRowsStable, gotoPage, exportSelected, collect, triggerExport,
+    globalThis.api = { state, parseRow, getSelected, waitRowsStable, gotoPage, collect, triggerExport,
       filteredItems, isExported, snapshot, applySelect, live,
       firstNumber, rebasePages,
+      // 用箭头转发而不是直接挂函数引用：override 换了实现后，测试里从 api 调用也走新实现。
+      exportSelected: (...a) => exportSelected(...a),
+      exportByTag: (...a) => exportByTag(...a),
+      exportTranscriptsViaDetail: (...a) => exportTranscriptsViaDetail(...a),
       configure: c => Object.assign(CONFIG, c),
       override: o => {
         if (o.getRows) getRows = o.getRows;
@@ -173,6 +177,10 @@ function content(options = {}) {
         if (o.setPageSize) setPageSize = o.setPageSize;
         if (o.waitRowsStable) waitRowsStable = o.waitRowsStable;
         if (o.gotoPage) gotoPage = o.gotoPage;
+        // 按标签导出的编排测试需要换掉这两个子流程。
+        if (o.getSelected) getSelected = o.getSelected;
+        if (o.exportSelected) exportSelected = o.exportSelected;
+        if (o.exportTranscriptsViaDetail) exportTranscriptsViaDetail = o.exportTranscriptsViaDetail;
       }
     };
   })();`, ctx);
@@ -267,6 +275,96 @@ test('菜单根本没点下去：释放租约后才撤回pending，下次不会�
   assert.ok(calls.indexOf('release') < calls.indexOf('journal.clear-pending'));
   assert.match(c.api.live.message, /本次没有发送导出点击/);
   assert.equal(c.api.state.selected.has('1'), true);
+});
+
+// ── v1.8.24：菜单弹不出来时的三处修复 ───────────────────────────────
+test('菜单点不开不再中止整批：记这一项失败，后面的项照跑', async () => {
+  const c = content(); let attempts = 0;
+  c.api.state.collected = [
+    { fileId: '1', page: 1, name: '课程1', type: 'transcript' },
+    { fileId: '2', page: 1, name: '课程2', type: 'transcript' },
+  ];
+  c.api.state.selected.add('1'); c.api.state.selected.add('2');
+  c.api.override({
+    getRows: () => [row('1'), row('2')],
+    setPageSize: async () => true, gotoPage: async () => true, waitRowsStable: async () => 2,
+    triggerExport: async () => { attempts++; return false; }, // 录制页在后台，菜单始终弹不出来
+    rpc: async op => op === 'prepare' ? { ticket: 't' } : {},
+  });
+  const r = await c.api.exportSelected();
+  // 现场教训：老逻辑第一项就 throw，150 项里后面 112 项一项都跑不到。
+  assert.equal(attempts, 2, '第二项必须照样被尝试');
+  assert.equal(r.failed, 2);
+  assert.equal(r.done, 0);
+  assert.equal(r.failedItems.length, 2);
+  assert.equal(r.failedItems[0].code, 'menu-miss');
+  assert.match(c.api.live.message, /本次没有发送导出点击/, '终态要写明为什么失败');
+});
+
+test('连续 5 项都点不开菜单就熔断，别让用户白等十几分钟', async () => {
+  const c = content(); let attempts = 0;
+  const collected = Array.from({ length: 8 }, (_, i) => ({ fileId: String(i + 1), page: 1, name: '课程' + (i + 1), type: 'transcript' }));
+  c.api.state.collected = collected;
+  collected.forEach(t => c.api.state.selected.add(t.fileId));
+  c.api.override({
+    getRows: () => collected.map(t => row(t.fileId, t.name)),
+    setPageSize: async () => true, gotoPage: async () => true, waitRowsStable: async () => collected.length,
+    triggerExport: async () => { attempts++; return false; },
+    rpc: async op => op === 'prepare' ? { ticket: 't' } : {},
+  });
+  const r = await c.api.exportSelected();
+  assert.equal(attempts, 5, '第 5 次连续失败就停，不再每项白等 5 秒');
+  assert.equal(r.failed, 5);
+  assert.match(r.error || '', /连续 5 项都打不开导出菜单/);
+});
+
+test('导出结果必须带 done/failed/failedItems，否则按标签导出会把战果算成 0', async () => {
+  const c = content();
+  c.api.state.collected = [{ fileId: '1', page: 1, name: '课程1', type: 'transcript' }];
+  c.api.state.selected.add('1');
+  c.api.override({
+    getRows: () => [row('1')],
+    setPageSize: async () => true, gotoPage: async () => true, waitRowsStable: async () => 1,
+    triggerExport: async () => false,
+    rpc: async op => op === 'prepare' ? { ticket: 't' } : {},
+  });
+  const r = await c.api.exportSelected();
+  // 现场根因：原来 return {started,total}，调用方 r.done/r.failed 全是 undefined → 加 0。
+  assert.equal(typeof r.done, 'number');
+  assert.equal(typeof r.failed, 'number');
+  assert.ok(Array.isArray(r.failedItems));
+});
+
+test('逐字稿标签：清单页菜单点不开的项自动改走详情页，不让用户白丢', async () => {
+  const c = content();
+  c.api.state.filter.type = 'transcript';
+  const targets = [
+    { fileId: '1', page: 1, name: '甲', meetingId: 'M1', transcriptVia: 'list' },
+    { fileId: '2', page: 1, name: '乙', meetingId: 'M2', transcriptVia: 'list' },
+  ];
+  c.api.state.collected = targets.map(t => ({ ...t, type: 'transcript' }));
+  targets.forEach(t => c.api.state.selected.add(t.fileId));
+  const seen = [];
+  c.api.override({
+    getSelected: () => targets.map(t => ({ ...t })),
+    exportSelected: async (rows) => {
+      seen.push('list:' + rows.length);
+      return {
+        started: true, total: rows.length, done: 0, failed: rows.length,
+        failedItems: rows.map(r => ({ fileId: r.fileId, name: r.name, code: 'menu-miss', reason: '更多菜单未找到可点击的“导出”' })),
+      };
+    },
+    exportTranscriptsViaDetail: async (rows) => {
+      seen.push('detail:' + rows.length + ':' + rows.map(r => r.transcriptVia).join(','));
+      return { started: true, total: rows.length, done: rows.length, failed: 0 };
+    },
+  });
+  const r = await c.api.exportByTag();
+  assert.deepEqual(seen, ['list:2', 'detail:2:detail,detail'], '降级必须显式带上 transcriptVia=detail');
+  assert.equal(r.done, 2, '降级成功的要算成功');
+  assert.equal(r.failed, 0, '降级成功的不再算失败');
+  assert.equal(c.api.live.phase, 'done');
+  assert.match(c.api.live.message, /自动改从详情页抓取成功/);
 });
 
 test('全部课程待核对时保留未发送下载的原因，不用“任务结束”覆盖成成功状态', async () => {
