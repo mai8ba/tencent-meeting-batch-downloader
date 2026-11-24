@@ -603,7 +603,7 @@ body {
 }
 .ws-body .topbar .top-actions { margin-left: 0; }
 .ws-body .brand-text .sub { max-width: 100%; white-space: normal; }
-/* 两步并排：v1.8.22 起导出移到勾选区下方，这里只剩"打开 + 采集"。 */
+/* 两步并排：v1.8.23 起导出移到勾选区下方，这里只剩"打开 + 采集"。 */
 .ws-body .stepbar {
   display: grid;
   grid-template-columns: 1fr 1fr;

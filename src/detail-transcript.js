@@ -65,7 +65,7 @@
   }
 
   /**
-   * v1.8.22 验货：判断一堆段落是否像真逐字稿，防止把播放器 UI / 空态说明当正文存下去。
+   * v1.8.23 验货：判断一堆段落是否像真逐字稿，防止把播放器 UI / 空态说明当正文存下去。
    * 判据（满足任一即判"不是逐字稿"）：
    *   1) 命中明显的播放器设置面板 / 空态提示文案（放大字体、透明背景、未生成字幕…）
    *   2) 一条带合法时间戳的都没有（真逐字稿每行都有 mm:ss）
@@ -84,7 +84,7 @@
     return timed > 0;
   }
 
-  /** 组装成纯文本：每行 "[时间] 发言人：正文"。 */
+  /** 组装成纯文本：每行 "[时间] 发言人：正文"（旧格式，保留兼容）。 */
   function format(entries) {
     const lines = entries.map((e) => {
       const prefix = e.time ? `[${e.time}] ` : '';
@@ -92,6 +92,47 @@
       return prefix + who + (e.text || '').trim();
     }).filter((s) => s.trim());
     return lines.join('\n') + '\n';
+  }
+
+  /**
+   * v1.8.23：按腾讯官网「逐字稿文本 Markdown」的排版组装。
+   * 官网真实样本（用户下载目录里的 .md）：
+   *   张菲菲(00:00:55):
+   *   来了。
+   *   <空行>
+   *   5 麦爸(00:00:58):
+   *   要没那么早，还得干活。
+   * 每段 = 发言人行 + 正文行 + 空行；时间为 hh:mm:ss。
+   *
+   * 时间来源分两种：
+   *   - 接口快路：e.time 是 msToClock 的 mm:ss —— 补小时前缀 → hh:mm:ss
+   *   - DOM 兜底：e.time 可能已是 hh:mm:ss 或 mm:ss —— 统一归一
+   * 发言人缺失时用 '未知'（官网空段极少见，给个占位比空括号清楚）。
+   */
+  function normalizeClock(str) {
+    const s = String(str || '').trim();
+    if (/^\d{1,2}:\d{1,2}:\d{1,2}$/.test(s)) {
+      const [h, m, sec] = s.split(':').map(Number);
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+    }
+    if (/^\d{1,2}:\d{1,2}$/.test(s)) {
+      const [m, sec] = s.split(':').map(Number);
+      return `00:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+    }
+    return '00:00:00';
+  }
+
+  /** 组装成官网排版的 Markdown 文本（段间空行，末尾无换行，与官网下载文件一致）。 */
+  function formatMarkdown(entries) {
+    const blocks = [];
+    for (const e of (Array.isArray(entries) ? entries : [])) {
+      const body = String(e?.text || '').trim();
+      if (!body) continue;
+      const who = String(e?.speaker || '').trim() || '未知';
+      const clock = normalizeClock(e?.time);
+      blocks.push(`${who}(${clock}):\n${body}`);
+    }
+    return blocks.join('\n\n');
   }
 
   // ---------- 接口快路：直接解析 /minutes/detail 的 JSON（v1.8.9） ----------
@@ -127,6 +168,15 @@
     const m = String(Math.floor(total / 60)).padStart(2, '0');
     const s = String(total % 60).padStart(2, '0');
     return `${m}:${s}`;
+  }
+
+  /** 毫秒时间戳 → hh:mm:ss（官网下载 Markdown 用的是六位、含小时的时钟）。 */
+  function msToClockLong(ms) {
+    const total = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
+    const h = String(Math.floor(total / 3600)).padStart(2, '0');
+    const m = String(Math.floor((total % 3600) / 60)).padStart(2, '0');
+    const s = String(total % 60).padStart(2, '0');
+    return `${h}:${m}:${s}`;
   }
 
   /** 把 paragraphs 数组解析成与 DOM 抓取同构的段落数组（供单测与缓存共用）。 */
@@ -166,11 +216,11 @@
     if (!ready) return null;
     const entries = fromParagraphs([...apiParagraphs.values()]);
     if (!entries.length) return null;
-    return { text: format(entries), count: entries.length, source: 'api' };
+    return { text: formatMarkdown(entries), count: entries.length, source: 'api' };
   }
 
   /**
-   * v1.8.22：返回 { node, exact }。
+   * v1.8.23：返回 { node, exact }。
    * exact=true 才是真正的逐字稿容器；退化到 documentElement 时 exact=false——
    * 这时绝不能跑 collectByText（整页可见文字会把播放器设置面板/空态说明当正文抄下来）。
    */
@@ -204,7 +254,7 @@
 
   /** 滚动收集：反复取当前段落 + 滚到底部，直到不再增长或到底。
    *  allowTextFallback：只有在真逐字稿容器里才允许 collectByText 文本兜底；
-   *  退化到整页时强制关闭，否则会把播放器 UI 文字全抄进来（v1.8.22）。
+   *  退化到整页时强制关闭，否则会把播放器 UI 文字全抄进来（v1.8.23）。
    */
   async function collectAll(container, { maxRounds = 400, settleRounds = 5, allowTextFallback = true } = {}) {
     const all = new Map();
@@ -257,7 +307,7 @@
     }
 
     // 兜底：接口没拿到（站点改路径/改动监听失效），退回 DOM 滚动。
-    // v1.8.22：只有找到真容器才允许文本兜底；退化到整页时只认 paragraph 节点。
+    // v1.8.23：只有找到真容器才允许文本兜底；退化到整页时只认 paragraph 节点。
     const found = await waitContainer(12000);
     const entries = found ? await collectAll(found.node, { allowTextFallback: found.exact }) : [];
     if (!entries.length) {
@@ -265,12 +315,12 @@
       const apiHint = apiParagraphs.size ? `接口只拿到 ${apiParagraphs.size} 段` : '接口未拦到逐字稿数据';
       return { ok: false, error: `这场会议没有生成逐字稿，或逐字稿尚未加载（${apiHint}）；请手动点开该会议的「逐字稿」标签确认后再试` };
     }
-    // v1.8.22 验货：抓到的是播放器 UI / 空态说明，宁可报失败也不存一份垃圾文件。
+    // v1.8.23 验货：抓到的是播放器 UI / 空态说明，宁可报失败也不存一份垃圾文件。
     if (!looksLikeTranscript(entries)) {
       return { ok: false, error: '读到的内容不像逐字稿（疑似播放器界面文字或未生成字幕），已跳过不保存；请手动点开该会议的「逐字稿」标签确认' };
     }
     logCapture('dom', entries.length);
-    return { ok: true, text: format(entries), count: entries.length, source: 'dom' };
+    return { ok: true, text: formatMarkdown(entries), count: entries.length, source: 'dom' };
   }
 
   function logCapture(source, count) {
@@ -285,5 +335,5 @@
     return true; // 异步 respond
   });
 
-  globalThis.TMeetDetail = Object.freeze({ collectVisible, collectByText, looksLikeTranscript, format, msToClock, fromApiData, capture });
+  globalThis.TMeetDetail = Object.freeze({ collectVisible, collectByText, looksLikeTranscript, format, formatMarkdown, msToClock, msToClockLong, normalizeClock, fromApiData, capture });
 })();

@@ -150,7 +150,7 @@ test('snapshot 一次带回清单、勾选、筛选、已下载和进度', async
   assert.equal(snap.live.phase, 'idle');
 });
 
-test('v1.8.22 切标签只筛类目：不替用户勾选，不改行真实类型；逐字稿按会议合并', async () => {
+test('v1.8.23 切标签只筛类目：不替用户勾选，不改行真实类型；逐字稿按会议合并', async () => {
   const h = harness();
   h.api.state.collected = [
     { fileId: 'v1', name: '玫子', type: 'video', hasVideo: true, meetingId: '448436389', time: '2026-11-20 10:00' },      // 视频+逐字稿

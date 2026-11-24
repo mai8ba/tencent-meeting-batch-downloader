@@ -84,8 +84,9 @@
 
   // ---------- 文件类型分类 ----------
   // 全项目只此一份：录制行名称、下载文件名、响应 mime 都走这里，避免三处正则漂移。
-  const TRANSCRIPT_NAME = /转写|逐字稿|transcript|纪要|minutes|\.(docx?|txt|srt|vtt|pdf)$/i;
-  const TRANSCRIPT_EXT = /^(docx?|txt|srt|vtt|pdf)$/i;
+  // v1.8.23：加 md —— 逐字稿保存改为官网排版的 Markdown，下载/校验链路要认得 .md。
+  const TRANSCRIPT_NAME = /转写|逐字稿|transcript|纪要|minutes|\.(md|markdown|docx?|txt|srt|vtt|pdf)$/i;
+  const TRANSCRIPT_EXT = /^(md|markdown|docx?|txt|srt|vtt|pdf)$/i;
   // 通用扩展名：保留 v1.6 的行为（任意 1-8 位字母数字），只用于决定文件后缀，
   // 是否算"逐字稿"统一由 TRANSCRIPT_EXT 判断。
   const ANY_EXT = /\.([a-z0-9]{1,8})(?:$|[?#])/i;

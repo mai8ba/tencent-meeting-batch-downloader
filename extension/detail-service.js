@@ -2,7 +2,7 @@
  *
  * 清单页的导出只有视频，逐字稿要进详情页拿。本模块：
  *   1. detail.capture —— 让指定详情页 tab 抓取逐字稿（content script 干），回传文本；
- *   2. detail.save   —— 把文本用 data URL 存成 .txt，放"腾讯会议录制下载/日期_逐字稿/"；
+ *   2. detail.save   —— 把官网排版的 Markdown 存成 .md，放"腾讯会议录制下载/日期_逐字稿/"；
  *   3. detail.ping   —— 探测详情页脚本是否已就绪（等页面加载）。
  *
  * 只接受本扩展内部调用（manifest 的 cw/crm content script 与录制页）。
@@ -44,10 +44,11 @@
     return { folder: `${y}-${m}-${d}`, stamp: `${y}${m}${d}` };
   }
 
-  /** 逐字稿相对路径：腾讯会议录制下载/2026-11-23_逐字稿/20261123_会议号_逐字稿.txt */
+  /** 逐字稿相对路径：腾讯会议录制下载/2026-11-23_逐字稿/20261123_课程名_会议号_逐字稿.md
+   *  v1.8.23：排版对齐腾讯官网下载的 Markdown，后缀也从 .txt 改为 .md。 */
   function transcriptFilename({ stem, day }) {
     const d = day || localDate();
-    return `腾讯会议录制下载/${d.folder}_逐字稿/${d.stamp}_${stem}_逐字稿.txt`;
+    return `腾讯会议录制下载/${d.folder}_逐字稿/${d.stamp}_${stem}_逐字稿.md`;
   }
 
   function detailTab(tab) {

@@ -109,7 +109,7 @@ test('collectVisible：没有 data-pid 时用 时间+正文 做键，同样去�
   assert.equal(d.collectVisible(container).length, 1);
 });
 
-test('v1.8.22 验货：真逐字稿（每行有时间戳）通过', () => {
+test('v1.8.23 验货：真逐字稿（每行有时间戳）通过', () => {
   const d = detailCtx();
   const entries = [
     { pid: 1, speaker: '张菲菲', time: '00:55', text: '来了。' },
@@ -119,7 +119,7 @@ test('v1.8.22 验货：真逐字稿（每行有时间戳）通过', () => {
   assert.equal(d.looksLikeTranscript(entries), true);
 });
 
-test('v1.8.22 验货：播放器 UI 文字（用户截图里的真实垃圾样本）一律判失败', () => {
+test('v1.8.23 验货：播放器 UI 文字（用户截图里的真实垃圾样本）一律判失败', () => {
   const d = detailCtx();
   // 这些就是"何老师辅导沟通"那份垃圾文件里的原文
   const garbage = [
@@ -133,7 +133,7 @@ test('v1.8.22 验货：播放器 UI 文字（用户截图里的真实垃圾样�
   assert.equal(d.looksLikeTranscript([{ time: '00:01', text: '点击放大字体后选择透明背景' }]), false);
 });
 
-test('v1.8.22 验货：一条时间戳都没有 / 空内容判失败；正文偶尔提普通词不误杀', () => {
+test('v1.8.23 验货：一条时间戳都没有 / 空内容判失败；正文偶尔提普通词不误杀', () => {
   const d = detailCtx();
   assert.equal(d.looksLikeTranscript([]), false);
   assert.equal(d.looksLikeTranscript(null), false);
@@ -144,7 +144,7 @@ test('v1.8.22 验货：一条时间戳都没有 / 空内容判失败；正文偶
   ]), true);
 });
 
-test('v1.8.22 整页兜底禁用文本收集：collectAll 的开关调用写死在源码里', () => {
+test('v1.8.23 整页兜底禁用文本收集：collectAll 的开关调用写死在源码里', () => {
   // 行为测试成本高（滚动等待），用契约锁定"退化到整页时关掉文本兜底"这根保险丝。
   const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'detail-transcript.js'), 'utf8');
   assert.match(src, /allowTextFallback:\s*found\.exact/, '只有找到真容器才开文本兜底');
@@ -176,6 +176,45 @@ test('detailTab：只认会议详情页 cw/crm，不认清单页', () => {
   assert.equal(s.detailTab({ url: 'https://meeting.tencent.com/crm/abc123' }), true);
   assert.equal(s.detailTab({ url: 'https://meeting.tencent.com/user-center/meeting-record' }), false);
   assert.equal(s.detailTab({ url: 'https://evil.test/cw/abc' }), false);
+});
+
+test('v1.8.23 msToClockLong：毫秒转官网六位时钟 hh:mm:ss', () => {
+  const d = detailCtx();
+  assert.equal(d.msToClockLong(0), '00:00:00');
+  assert.equal(d.msToClockLong(55000), '00:00:55');
+  assert.equal(d.msToClockLong(3661000), '01:01:01');
+  assert.equal(d.msToClockLong(4800000), '01:20:00');
+  assert.equal(d.msToClockLong(null), '00:00:00');
+});
+
+test('v1.8.23 normalizeClock：mm:ss 与 hh:mm:ss 都归一成六位', () => {
+  const d = detailCtx();
+  assert.equal(d.normalizeClock('00:55'), '00:00:55');
+  assert.equal(d.normalizeClock('01:20:03'), '01:20:03');
+  assert.equal(d.normalizeClock('1:2:3'), '01:02:03');
+  assert.equal(d.normalizeClock(''), '00:00:00');
+});
+
+test('v1.8.23 formatMarkdown：完全对齐腾讯官网下载样本（发言人(时:分:秒): + 正文 + 空行）', () => {
+  const d = detailCtx();
+  // 官网真实文件前两段的原文
+  const expected = '张菲菲(00:00:55):\n来了。\n\n5 麦爸(00:00:58):\n要没那么早，还得干活。';
+  const out = d.formatMarkdown([
+    { speaker: '张菲菲', time: '00:00:55', text: '来了。' },
+    { speaker: '5 麦爸', time: '00:00:58', text: '要没那么早，还得干活。' },
+  ]);
+  assert.equal(out, expected);
+});
+
+test('v1.8.23 formatMarkdown：接口快路的 mm:ss 时间自动补成 hh:mm:ss；空正文跳过；无发言人写未知', () => {
+  const d = detailCtx();
+  const out = d.formatMarkdown([
+    { speaker: '麦爸', time: '00:02', text: '听歌能听到吗？' },       // 接口快路 mm:ss
+    { speaker: '', time: '01:05:30', text: '无发言人' },
+    { speaker: '甲', time: '00:03', text: '   ' },                    // 空正文
+  ]);
+  assert.equal(out, '麦爸(00:00:02):\n听歌能听到吗？\n\n未知(01:05:30):\n无发言人');
+  assert.ok(!out.includes('甲('), '空正文段不输出');
 });
 
 test('msToClock：毫秒时间戳转 mm:ss', () => {
@@ -238,7 +277,9 @@ test('接口快路：分页响应按 pid 累积合并，乱序也还原，comple
   assert.equal(r.ok, true);
   assert.equal(r.source, 'api', '走了接口快路，不是 DOM 兜底');
   assert.equal(r.count, 4, '两页 4 段都拿到，没有只留最后一页');
-  assert.equal(r.text, '[00:10] 麦爸：第一段\n[00:20] 甲：第二段\n[00:30] 乙：第三段\n[00:40] 丙：第四段\n');
+  // v1.8.23：capture 输出改为官网 Markdown 排版
+  assert.equal(r.text,
+    '麦爸(00:00:10):\n第一段\n\n甲(00:00:20):\n第二段\n\n乙(00:00:30):\n第三段\n\n丙(00:00:40):\n第四段');
   delete global.document;
 });
 
@@ -256,7 +297,7 @@ test('接口快路：真实的长接口路径（带 /wemeet-cloudrecording-webap
   const r = await d.capture();
   assert.equal(r.ok, true);
   assert.equal(r.source, 'api');
-  assert.equal(r.text, '[00:02] 麦爸：听歌能听到吗？\n');
+  assert.equal(r.text, '麦爸(00:00:02):\n听歌能听到吗？');
 });
 
 // 造一个"只记录后台委托给离屏页建链接、以及随后真正的下载"的上下文
@@ -281,11 +322,11 @@ test('localDate / transcriptFilename：本地日期，文件名前缀带 YYYYMMD
   assert.equal(d.stamp, '20260105');
   assert.equal(
     s.transcriptFilename({ stem: '448436389', day: d }),
-    '腾讯会议录制下载/2026-01-05_逐字稿/20260105_448436389_逐字稿.txt'
+    '腾讯会议录制下载/2026-01-05_逐字稿/20260105_448436389_逐字稿.md'
   );
 });
 
-test('detail.save：文件名 = 日期_课程名_会议号_逐字稿.txt，后台用离屏链接下载', async () => {
+test('detail.save：文件名 = 日期_课程名_会议号_逐字稿.md（官网排版），后台用离屏链接下载', async () => {
   const { s, getSent, getDl } = saveCtx();
   const r = await s.create({ licensing: { require: async () => {} } }).handle(
     { op: 'detail.save', content: '麦爸 听歌能听到吗？', name: '菲菲辅导麦爸', meetingId: '235 263 476' },
@@ -296,7 +337,7 @@ test('detail.save：文件名 = 日期_课程名_会议号_逐字稿.txt，后�
   assert.equal(sent.type, 'tmeet.blob-url', '先请离屏页建 blob 链接');
   const dl = getDl();
   assert.equal(dl.url, 'blob:ext/1', '后台用离屏返回的 blob 链接下载');
-  assert.match(dl.filename, /^腾讯会议录制下载\/\d{4}-\d{2}-\d{2}_逐字稿\/\d{8}_菲菲辅导麦爸_235263476_逐字稿\.txt$/);
+  assert.match(dl.filename, /^腾讯会议录制下载\/\d{4}-\d{2}-\d{2}_逐字稿\/\d{8}_菲菲辅导麦爸_235263476_逐字稿\.md$/);
   assert.ok(dl.filename.includes('菲菲辅导麦爸'), '课程名必须在文件名里，否则下载列表认不出是哪门课');
 });
 
@@ -319,7 +360,7 @@ test('v1.8.13 实名登记：下载前登记会议号文件名，监听器能认
     { op: 'detail.save', content: '正文', name: '课程', meetingId: '448436389' }, {}
   );
   const claimed = s.claimOwnDownload({ url: getDl().url });
-  assert.ok(claimed && claimed.endsWith('_448436389_逐字稿.txt'), '认领到会议号命名：' + claimed);
+  assert.ok(claimed && claimed.endsWith('_448436389_逐字稿.md'), '认领到会议号命名：' + claimed);
   assert.equal(claimed, getDl().filename, 'onDeterminingFilename 认领的名字必须与 download() 传入的一致');
   // 同一链接只认领一次，避免并发下载串名
   assert.equal(s.claimOwnDownload({ url: getDl().url }), null, '重复认领返回 null');
@@ -347,7 +388,7 @@ test('detail.save：没有会议号时退回安全化课程名（仍带日期前
   await s.create({ licensing: { require: async () => {} } }).handle(
     { op: 'detail.save', content: '正文', name: 'a/b:c', meetingId: '' }, {}
   );
-  assert.match(getDl().filename, /\/\d{8}_a-b-c_逐字稿\.txt$/);
+  assert.match(getDl().filename, /\/\d{8}_a-b-c_逐字稿\.md$/);
 });
 
 test('离屏页 createBlobUrl：内容带 UTF-8 BOM，Excel/记事本不再乱码', async () => {

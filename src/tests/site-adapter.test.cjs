@@ -31,7 +31,9 @@ test('类型分类：扩展名、中文关键词、mime 三条路径归一', () 
   assert.equal(site.kindLabel('课程.docx'), '逐字稿');
   assert.equal(site.kindLabel('课程.mp4'), '视频');
   assert.equal(site.isTranscriptExt('DOCX'), true);
+  assert.equal(site.isTranscriptExt('md'), true, 'v1.8.23：官网排版逐字稿存成 .md，要认得');
   assert.equal(site.isTranscriptExt('mp4'), false);
+  assert.equal(site.classify('课程.md'), 'transcript');
   assert.equal(site.extensionOf('课程.DOCX', ''), 'docx');
   assert.equal(site.extensionOf('https://cdn.qq.com/a.mp4?sign=1', ''), 'mp4');
   assert.equal(site.extensionOf('下载', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'), 'docx');
