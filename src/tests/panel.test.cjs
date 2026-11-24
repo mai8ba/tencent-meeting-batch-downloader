@@ -138,6 +138,67 @@ test('「更多」菜单已按用户要求下线：下载他人分享课程直�
   assert.match(read('batch.js'), /clickActions\.sourceLine =/, '诊断信息要保留一个不占位置的入口（点状态行复制）');
 });
 
+test('标题栏的「幸会兄台 / 共饮一杯」：悬停才飘二维码，默认不许占位置也不许挡点击', () => {
+  const panel = read('panel.js');
+  const css = read('panel.css');
+
+  // 结构：两个入口挂在标题栏，且二维码路径预留好（换成真图时只放文件，不改结构）
+  assert.match(panel, /class="ws-social"/, '标题栏要有「幸会兄台 / 共饮一杯」容器');
+  assert.match(panel, /role="button"[^>]*>幸会兄台/, '联系人入口文案是「幸会兄台」');
+  assert.match(panel, /role="button"[^>]*>共饮一杯/, '打赏入口文案是「共饮一杯」');
+  assert.match(panel, /data-ext-src="assets\/contact-qr\.png"/, '联系二维码路径要预留');
+  assert.match(panel, /data-ext-src="assets\/reward-qr\.png"/, '打赏收款码路径要预留');
+  // 影子根里的相对路径会按站点域名解析（必 404），必须换成扩展 URL
+  assert.match(panel, /chrome\.runtime\.getURL\(path\)/, '影子根里必须把图片路径换成扩展地址');
+  assert.match(panel, /img\.addEventListener\('error'[\s\S]{0,40}?img\.remove\(\)/, '图没放进来时要退回占位文案，不能留破图标');
+
+  // 样式：默认收起（display:none，不能用 opacity 留个透明层挡按钮）
+  assert.match(css, /\.ws-social__pop \{\s*\n\s*display: none;/, '浮层默认必须 display:none');
+  assert.match(css, /\.ws-social__item:hover \.ws-social__pop/, '鼠标移上去要能飘出浮层');
+  assert.match(css, /\.ws-social__item:focus \.ws-social__pop/, '键盘聚焦也要能看，不能只认鼠标');
+  // 热区：链接和浮层之间有空隙，热区必须做在链接自己身上（做在浮层上没用：浮层是 display:none）
+  assert.match(css, /\.ws-social__item::after/, '缺链接自身的加宽热区：鼠标往下挪会瞬间脱手，浮层闪退');
+  assert.match(css, /\.qr-img\.is-ready \+ \.qr-ph \{\s*display: none;/, '真图接上后占位文案要让位，否则叠在一起');
+});
+
+test('版本号不能被标题的省略号吃掉（两个四字链接会挤压标题栏）', () => {
+  const panel = read('panel.js');
+  const css = read('panel.css');
+  // 真机量到过：.ws-ver 塞在 .ws-title 里时，标题一 overflow:hidden + ellipsis，
+  // 版本号就被截成「v1…」。版本号必须是标题的兄弟节点，自己不被压缩。
+  assert.doesNotMatch(panel, /ws-title">[^<]*<em class="ws-ver">/, '版本号不许嵌在 .ws-title 里');
+  assert.match(panel, /<em class="ws-ver">/, '版本号要在标题栏可见');
+  assert.match(css, /\.ws-ver \{[\s\S]{0,120}?flex: 0 0 auto;/, '版本号必须禁止被压缩');
+  assert.match(css, /\.ws-title \{[\s\S]{0,200}?flex: 0 1 auto;/, '标题栏里只有标题可以牺牲宽度');
+});
+
+test('二维码是成品：图在包里、manifest 放行、有图时虚线占位框必须收掉', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const panel = read('panel.js');
+  const css = read('panel.css');
+  const manifest = JSON.parse(read('manifest.json'));
+
+  // ① 图真的在包里（少一张就退回"占位图"文案，用户看到的是没做完的半成品）
+  for (const f of ['assets/contact-qr.png', 'assets/reward-qr.png']) {
+    const p = path.join(__dirname, '..', f);
+    assert.ok(fs.existsSync(p), `缺二维码文件：${f}`);
+    assert.ok(fs.statSync(p).size > 1024, `${f} 太小，可能不是有效图片`);
+  }
+
+  // ② 影子根里的图走 chrome.runtime.getURL，必须登记 web_accessible_resources，
+  //    否则 Chrome 直接拒载（表现就是永远只有占位文案，且看不出原因）
+  const war = manifest.web_accessible_resources || [];
+  const res = war.flatMap((w) => w.resources || []);
+  for (const f of ['assets/contact-qr.png', 'assets/reward-qr.png']) {
+    assert.ok(res.includes(f), `${f} 必须写进 web_accessible_resources`);
+  }
+
+  // ③ 有图时收掉虚线框，且外框去掉 1px 边框（否则 150×150 的码边会被裁掉 2px）
+  assert.match(panel, /classList\.add\('has-qr'\)/, '图片加载成功要给外框挂 has-qr');
+  assert.match(css, /\.qr-box\.has-qr \{[^}]*border: none/, '有图时必须去掉虚线边框');
+});
+
 test('面板启动必须由外壳显式叫醒，不能猜 document.readyState', () => {
   const panel = read('panel.js');
   const batch = read('batch.js');
@@ -163,7 +224,7 @@ test('面板启动必须由外壳显式叫醒，不能猜 document.readyState', 
 
 test('版本号必须在标题栏可见（改了没生效时一眼可辨）', () => {
   const manifest = JSON.parse(read('manifest.json'));
-  assert.match(manifest.version, /^1\.8\.\d+$/, '版本号格式应为 1.8.x，且每轮改动都要升');
+  assert.match(manifest.version, /^\d+\.\d+\.\d+$/, '版本号格式应为 x.y.z，且每轮改动都要升');
   // 不写死具体版本号：只要三处（manifest / HTML 戳 / 脚本常量）一致即可
   const batch = read('batch.js');
   const jsVersion = (batch.match(/const BATCH_JS_VERSION = '([^']+)'/) || [])[1] || '';

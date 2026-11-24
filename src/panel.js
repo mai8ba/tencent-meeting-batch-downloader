@@ -68,9 +68,28 @@
       + '<span class="ws-handle-text">腾讯会议批量下载</span>'
       + '<span class="ws-handle-badge" hidden></span></button>'
       + '<div class="ws-drawer">'
-      + '<div class="ws-head"><span class="ws-title">腾讯会议录制批量下载'
-      + '<em class="ws-ver">v' + version + '</em></span>'
+      + '<div class="ws-head"><span class="ws-title">腾讯会议录制批量下载</span>'
+      // 版本号必须独立于标题：塞在 .ws-title 里会被 ellipsis 一起吃掉，
+      // 两个链接变长后标题一缩，版本号就只剩「v1…」（真机量出来过）。
+      + '<em class="ws-ver">v' + version + '</em>'
       + '<span class="ws-status">启动中…</span>'
+      // 「幸会兄台 / 共饮一杯」：鼠标移上去才飘出二维码，平时只占两个小字的位置。
+      // 纯 CSS 悬停（:hover / :focus），不写 JS —— 少一处需要跟着状态机走的东西。
+      // 二维码图片放扩展的 assets/ 下，用 data-ext-src 标记：影子根里的相对路径
+      // 会按「站点域名」解析（变成 tencent.com/assets/xxx.png，必然 404），
+      // 必须换成 chrome.runtime.getURL() 的扩展地址。
+      + '<span class="ws-social">'
+      + '<span class="ws-social__item" tabindex="0" role="button" aria-label="幸会兄台（微信二维码）">幸会兄台'
+      + '<span class="ws-social__pop" role="tooltip">'
+      + '<span class="qr-box"><img class="qr-img" data-ext-src="assets/contact-qr.png" alt="微信加好友二维码">'
+      + '<span class="qr-ph">微信二维码<em>占位图</em></span></span>'
+      + '<em class="qr-tip">扫码加个朋友</em></span></span>'
+      + '<span class="ws-social__item" tabindex="0" role="button" aria-label="共饮一杯（收款二维码）">共饮一杯'
+      + '<span class="ws-social__pop" role="tooltip">'
+      + '<span class="qr-box"><img class="qr-img" data-ext-src="assets/reward-qr.png" alt="收款二维码">'
+      + '<span class="qr-ph">收款二维码<em>占位图</em></span></span>'
+      + '<em class="qr-tip">请我喝杯咖啡</em></span></span>'
+      + '</span>'
       + '<button class="ws-close" type="button" title="收起抽屉（Esc）">✕</button></div>'
       + '<div class="ws-body"></div>'
       + '</div>';
@@ -81,6 +100,20 @@
     wrap.querySelector('.ws-close').addEventListener('click', () => close());
     wrap.querySelector('.ws-backdrop').addEventListener('click', () => close());
     wrap.querySelector('.ws-handle').addEventListener('click', () => open());
+
+    // 二维码图片：换成扩展自己的地址（见上面 data-ext-src 的注释）。
+    // 图加载成功 → 给外框挂 has-qr，虚线占位框收掉（那圈虚线是"还没图"的标记，
+    // 有图还留着就像没做完；而且 1px 边框会把 150×150 的码边裁掉 2px）。
+    // 图还没放进包 → 自动退回"占位图"文案，绝不会留一个破图标在界面上。
+    wrap.querySelectorAll('img[data-ext-src]').forEach((img) => {
+      const path = img.getAttribute('data-ext-src');
+      img.addEventListener('load', () => {
+        img.classList.add('is-ready');
+        img.parentElement?.classList.add('has-qr');
+      });
+      img.addEventListener('error', () => img.remove());
+      img.src = chrome.runtime.getURL(path);
+    });
 
     // ── 状态位：让"面板在但没反应"这种故障一眼可见 ──────────────
     // 以前只有一句话的 HTML 初始文案，用户看到"正在连接录制目录…"根本分不清

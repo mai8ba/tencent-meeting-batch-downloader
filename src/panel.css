@@ -67,22 +67,33 @@
 .ws-head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--line, #e4e7ec);
   background: var(--surface, #fff);
   flex: 0 0 auto;
+  /* 二维码浮层要从标题栏往下盖住内容区，所以标题栏得自成一个层级 */
+  position: relative;
+  z-index: 6;
 }
 
 .ws-title {
   font-weight: 700;
-  font-size: 14.5px;
+  font-size: 14px;
+  /* 抽屉只有 430px：标题是全栏唯一可以牺牲的一项，长了就自己收，
+     绝不能把状态灯 / 幸会兄台 / 共饮一杯 / 关闭按钮挤出去 */
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ws-ver {
-  margin-left: 8px;
+  /* 版本号独立于标题，不跟标题一起被省略号吃掉 */
+  flex: 0 0 auto;
   font-style: normal;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--muted, #8b919b);
 }
@@ -100,6 +111,91 @@
 }
 .ws-status.ok { background: #e8f7f0; color: var(--ok, #17a673); }
 .ws-status.err { background: #fdf2f2; color: var(--danger, #b02a2a); }
+
+/* ---------- 幸会兄台 / 共饮一杯：平时两个小字，鼠标移上去才飘出二维码 ---------- */
+.ws-social {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--brand, #1f6feb);
+}
+.ws-social__item {
+  position: relative;
+  padding: 2px 0;
+  white-space: nowrap;
+  cursor: pointer;
+  border-radius: 4px;
+  outline: none;
+}
+/* 悬停热区：链接下面那 9px 空隙必须也算在链接身上。
+   只给浮层加"桥接线"没用 —— 浮层是 display:none 的，鼠标穿过空隙的那一瞬间
+   链接已经脱离 :hover，浮层当场收起，手一抖就没了。
+   所以把热区做在链接自己身上：往下多留 11px，正好接住浮层上沿。 */
+.ws-social__item::after {
+  content: '';
+  position: absolute;
+  left: -8px;
+  right: -8px;
+  top: -2px;
+  bottom: -11px;
+}
+.ws-social__item:hover { text-decoration: underline; }
+.ws-social__item:focus-visible { outline: 2px solid var(--brand, #1f6feb); outline-offset: 3px; }
+
+/* 浮层默认 display:none —— 用 visibility/opacity 会留下一个透明层挡住下面的按钮 */
+.ws-social__pop {
+  display: none;
+  position: absolute;
+  top: calc(100% + 9px);
+  right: -8px;
+  z-index: 20;
+  padding: 10px 10px 8px;
+  background: #fff;
+  border: 1px solid var(--line, #e4e7ec);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(16, 24, 40, .18);
+  text-align: center;
+  text-decoration: none;
+}
+/* 桥接线里不需要额外伪元素：热区已经做在 .ws-social__item::after 上了（见上） */
+.ws-social__item:hover .ws-social__pop,
+.ws-social__item:focus .ws-social__pop,
+.ws-social__item:focus-within .ws-social__pop { display: block; }
+
+/* 二维码位置：有图显示图，没图显示占位文案（图片加载失败会被 JS 删掉） */
+.qr-box {
+  display: grid;
+  place-items: center;
+  width: 150px;
+  height: 150px;
+  border-radius: 8px;
+  background: #f7f8fa;
+  border: 1px dashed #c9cfd8;
+  overflow: hidden;
+}
+.qr-img { display: none; width: 150px; height: 150px; object-fit: contain; background: #fff; }
+.qr-img.is-ready { display: block; }
+/* 真图接上之后：虚线占位框收掉（有图还留虚线框像没做完），
+   边框也必须去掉 —— 150×150 的码配上 1px 边框，内容区只剩 148px，码边会被裁掉 2px */
+.qr-box.has-qr { border: none; background: #fff; }
+/* 图接上之后占位文案必须让位，否则会和二维码叠在一起 */
+.qr-img.is-ready + .qr-ph { display: none; }
+.qr-ph {
+  display: block;
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--muted, #8b919b);
+}
+.qr-ph em { display: block; font-style: normal; font-size: 10.5px; color: #aeb4bd; }
+.qr-tip {
+  display: block;
+  margin-top: 6px;
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--text-2, #5b616b);
+}
 
 .ws-close {
   margin-left: auto;
