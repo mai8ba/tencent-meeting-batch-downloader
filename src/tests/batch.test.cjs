@@ -40,6 +40,23 @@ test('主按钮被挡住时悬停不能变成白底白字', () => {
   assert.match(hover[0], /color:\s*#fff/, '正常悬停文字保持白色');
 });
 
+test('可点控件不许留"点了没反应"的死角', () => {
+  const css = fs.readFileSync(path.join(root, 'batch.css'), 'utf8');
+
+  // 现场（v2.0.1）：视频/逐字稿两段之间留着 2px 缝，点在那 2px 上什么都不发生，
+  // 用户感受就是"只有字能点"。分段控件的段与段之间必须贴住。
+  const segGroup = css.match(/\.seg-group \{[\s\S]{0,240}?\}/);
+  assert.ok(segGroup, '找不到 .seg-group 定义');
+  assert.match(segGroup[0], /gap: 0;/, '分段控件段与段之间不能留缝，否则点击落空');
+
+  // 小号文字按钮（全选/反选/打开下载列表…）必须有内边距，
+  // 只有文字宽度能点，等于"练准头"。
+  const link = css.match(/\.link \{[\s\S]{0,240}?\}/);
+  assert.ok(link, '找不到 .link 定义');
+  const pad = (link[0].match(/padding:\s*([\d.]+)px/) || [])[1];
+  assert.ok(Number(pad) >= 4, '小号文字按钮的上下内边距至少 4px，否则点起来太费劲');
+});
+
 test('工作台转义所有插值到 HTML 的文本', () => {
   const ui = batchUi();
   assert.equal(ui.escapeHtml('<img src=x onerror="alert(1)">'),

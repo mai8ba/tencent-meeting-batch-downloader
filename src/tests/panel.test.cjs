@@ -156,8 +156,12 @@ test('标题栏的「幸会兄台 / 共饮一杯」：悬停才飘二维码，�
   assert.match(css, /\.ws-social__pop \{\s*\n\s*display: none;/, '浮层默认必须 display:none');
   assert.match(css, /\.ws-social__item:hover \.ws-social__pop/, '鼠标移上去要能飘出浮层');
   assert.match(css, /\.ws-social__item:focus \.ws-social__pop/, '键盘聚焦也要能看，不能只认鼠标');
-  // 热区：链接和浮层之间有空隙，热区必须做在链接自己身上（做在浮层上没用：浮层是 display:none）
-  assert.match(css, /\.ws-social__item::after/, '缺链接自身的加宽热区：鼠标往下挪会瞬间脱手，浮层闪退');
+  // 热区：必须够大，而且不能用伪元素叠一层去扩（伪元素会盖住旁边的东西）
+  assert.match(css, /\.ws-social__item \{[\s\S]{0,220}?padding: 8px;/, '链接自己要有真内边距，否则只有文字能点/能悬停');
+  assert.match(css, /\.ws-social__item \{[\s\S]{0,260}?margin: -8px;/, '内边距要用负外边距抵回去，视觉位置不许动');
+  assert.doesNotMatch(css, /\.ws-social__item::after/, '热区不许再用伪元素叠加：会盖住状态灯和关闭按钮');
+  // 浮层要贴着热区下沿，中间不能留透明缝（留缝＝鼠标往下挪的瞬间就脱手）
+  assert.match(css, /\.ws-social__pop \{[\s\S]{0,160}?top: 100%;/, '浮层必须紧贴热区下沿，不能留缝');
   assert.match(css, /\.qr-img\.is-ready \+ \.qr-ph \{\s*display: none;/, '真图接上后占位文案要让位，否则叠在一起');
 });
 

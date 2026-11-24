@@ -67,7 +67,7 @@
 .ws-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--line, #e4e7ec);
   background: var(--surface, #fff);
@@ -117,39 +117,37 @@
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  /* 间距 = 两个链接各自左右内边距之和，这样两块热区刚好接上、不留缝隙也不重叠 */
+  gap: 16px;
   font-size: 11.5px;
   color: var(--brand, #1f6feb);
 }
 .ws-social__item {
   position: relative;
-  padding: 2px 0;
+  /* 热区必须做在链接自己身上，而且要够大。
+     踩过的坑（v2.0.1）：原来是 padding: 2px 0 —— 左右内边距是 0，
+     热区宽度就等于文字宽度，鼠标往字旁边挪一点点就脱手，用户感受就是
+     "只有字能点，字外面点不到"。
+     现在四周各留 8px 真内边距，再用同样的负外边距抵回去，视觉位置一个像素不动。 */
+  padding: 8px;
+  margin: -8px;
   white-space: nowrap;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: 7px;
   outline: none;
 }
-/* 悬停热区：链接下面那 9px 空隙必须也算在链接身上。
-   只给浮层加"桥接线"没用 —— 浮层是 display:none 的，鼠标穿过空隙的那一瞬间
-   链接已经脱离 :hover，浮层当场收起，手一抖就没了。
-   所以把热区做在链接自己身上：往下多留 11px，正好接住浮层上沿。 */
-.ws-social__item::after {
-  content: '';
-  position: absolute;
-  left: -8px;
-  right: -8px;
-  top: -2px;
-  bottom: -11px;
-}
 .ws-social__item:hover { text-decoration: underline; }
-.ws-social__item:focus-visible { outline: 2px solid var(--brand, #1f6feb); outline-offset: 3px; }
+.ws-social__item:focus-visible { outline: 2px solid var(--brand, #1f6feb); outline-offset: 1px; }
 
-/* 浮层默认 display:none —— 用 visibility/opacity 会留下一个透明层挡住下面的按钮 */
+/* 浮层紧贴热区下沿（top:100%），中间不留透明缝。
+   踩过的坑（v1.8.26）：浮层原来在 9px 之下，鼠标往下挪要跨过这条缝，
+   指针离开链接的那一瞬间 :hover 就断了，浮层当场消失、想修也没机会。
+   现在浮层从热区底边直接开始，热区又比文字大一圈 —— 一路挪过去不会掉。 */
 .ws-social__pop {
   display: none;
   position: absolute;
-  top: calc(100% + 9px);
-  right: -8px;
+  top: 100%;
+  right: 0;
   z-index: 20;
   padding: 10px 10px 8px;
   background: #fff;
@@ -159,7 +157,6 @@
   text-align: center;
   text-decoration: none;
 }
-/* 桥接线里不需要额外伪元素：热区已经做在 .ws-social__item::after 上了（见上） */
 .ws-social__item:hover .ws-social__pop,
 .ws-social__item:focus .ws-social__pop,
 .ws-social__item:focus-within .ws-social__pop { display: block; }

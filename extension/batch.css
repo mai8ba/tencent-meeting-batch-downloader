@@ -183,7 +183,9 @@ body {
   background: #eef0f3;
   border-radius: 8px;
   padding: 2px;
-  gap: 2px;
+  /* 段与段之间不留缝：原来 gap:2px，那 2px 落在两段之间点了没反应，
+     看着像"只有字能点"。现在两段直接贴住，点在哪儿都算其中一段。 */
+  gap: 0;
 }
 .seg {
   appearance: none;

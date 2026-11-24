@@ -27,7 +27,7 @@
    * 这个版本号让外壳能当场比对并说破："你跑的是旧脚本"。
    * ⚠️ 改动本文件时必须同步改这里（tests/panel.test.cjs 有测试守着）。
    */
-  const BATCH_JS_VERSION = '2.0.0';
+  const BATCH_JS_VERSION = '2.0.1';
   globalThis.__tmeetBatchVersion = BATCH_JS_VERSION;
 
   /** 面板模式下节点在影子根里，所有查询都必须从这里起，document 找不到。 */
