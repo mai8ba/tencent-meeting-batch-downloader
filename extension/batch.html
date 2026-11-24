@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="batch.css" />
 </head>
 <body>
-  <span id="tmeet-build" hidden>1.8.20</span>
+  <span id="tmeet-build" hidden>1.8.21</span>
   <!-- ===== 顶栏：只放品牌与状态，导航类操作收进「更多」 ===== -->
   <header class="topbar">
     <div class="brand">
@@ -23,7 +23,7 @@
     </div>
   </header>
 
-  <!-- ===== 主操作带：四步一字排开，按流程编号 ===== -->
+  <!-- ===== 主操作带：两步（v1.8.21 起导出移到你勾选的正下方） ===== -->
   <section class="stepbar">
     <button id="btnOpenRecordings" class="step step-go" type="button" title="在浏览器里打开腾讯会议「我的录制」">
       <span class="step-no">1</span>
@@ -40,39 +40,14 @@
         <em id="collectSub">0 项</em>
       </span>
     </button>
-
-    <button id="btnExport" class="step" type="button" title="先核对浏览器下载记录，只导出缺的">
-      <span class="step-no">3</span>
-      <span class="step-text">
-        <strong>开始导出</strong>
-        <em id="exportSub">未选择</em>
-      </span>
-    </button>
-
-    <button id="btnOpenFolder" class="step" type="button" title="在文件管理器里打开下载目录">
-      <span class="step-no">4</span>
-      <span class="step-text">
-        <strong>打开下载目录</strong>
-        <em>查看已下载文件</em>
-      </span>
-    </button>
-
-    <div class="spacer"></div>
-    <button id="btnStop" class="btn" type="button">停止</button>
   </section>
 
   <!-- ===== 顶部提示条：说明下载规则 + 两个入口 ===== -->
   <div class="noticebar">
-    <span class="muted">同名文件不会被覆盖：浏览器会自动在文件名后加序号（如「(1)」）。保存位置由浏览器的下载设置决定，插件不再要求授权文件夹。</span>
+    <span class="muted">同名文件不会被覆盖，保存位置由浏览器下载设置决定。</span>
     <button id="btnOpenDownloads" class="link" type="button">打开下载列表</button>
+    <button id="btnOpenFolder" class="link" type="button" title="在文件管理器里打开下载目录">打开下载目录</button>
     <button id="btnDownloadSettings" class="link" type="button" title="打开浏览器下载设置，可查看/修改下载位置（chrome://settings/downloads）">改下载位置</button>
-  </div>
-
-  <!-- ===== 进度条：只在任务运行时出现，平时不占位置 ===== -->
-  <div id="progressWrap" class="progress hidden">
-    <div class="bar"><i id="progressBar"></i></div>
-    <span id="progressText">准备中…</span>
-    <div id="exportHint" class="export-hint hidden"></div>
   </div>
 
   <!-- ===== 选择条：搜索 + 筛选 + 勾选，只作用于下方列表 ===== -->
@@ -94,6 +69,21 @@
       <button id="btnClearPending" class="link" type="button">全部允许重试</button>
     </span>
     <span id="hint" class="hint"></span>
+  </section>
+
+  <!-- ===== 导出操作：紧贴勾选区下方，先选再导，好找 ===== -->
+  <section class="exportbar">
+    <div class="export-actions">
+      <button id="btnExport" class="btn btn-primary" type="button" title="先核对浏览器下载记录，只导出缺的">
+        开始导出<span id="exportSub" class="export-sub"></span>
+      </button>
+      <button id="btnStop" class="btn" type="button" title="停止当前任务；停下后可点这里继续续导">停止</button>
+    </div>
+    <div id="progressWrap" class="progress hidden">
+      <div class="bar"><i id="progressBar"></i></div>
+      <span id="progressText">准备中…</span>
+      <div id="exportHint" class="export-hint hidden"></div>
+    </div>
   </section>
 
   <!-- ===== 列表 ===== -->

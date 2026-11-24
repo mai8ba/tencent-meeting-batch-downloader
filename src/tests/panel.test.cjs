@@ -213,7 +213,7 @@ test('扩展 manifest 不要写死 key：没有 key 时重新加载扩展 ID 会
   assert.equal(manifest.key, undefined, 'manifest 里不要写 key（会锁死扩展 ID，调试期反而碍事）');
 });
 
-test('v1.8.20 抽屉形态：贴边把手 + 右侧滑出，而不是铺满整页', () => {
+test('v1.8.21 抽屉形态：贴边把手 + 右侧滑出，而不是铺满整页', () => {
   const src = read('panel.js');
   const css = read('panel.css');
   assert.match(src, /ws-handle/, '必须有贴边的把手');
@@ -240,7 +240,7 @@ test('把手点得开：开门 class 在影子上，CSS 必须穿过影子墙去
     '裸 .ws-open .ws-drawer 在影子里匹配不到宿主，抽屉会永远藏在屏幕外');
 });
 
-test('v1.8.20 采集完成不再自动弹抽屉，只在把手上挂角标', () => {
+test('v1.8.21 采集完成不再自动弹抽屉，只在把手上挂角标', () => {
   const src = read('content.js');
   const at = src.indexOf('TMeetPanel?.setBadge');
   assert.ok(at > 0, '采集完应该走 setBadge');
@@ -262,7 +262,7 @@ test('清单区不能被上面几块挤没：body 可滚 + 清单保底高度 + 
     '四步要压成两列，别竖着排吃掉 300px');
 });
 
-test('v1.8.20 开源版：没有试用、没有激活码、不联网校时', () => {
+test('v1.8.21 开源版：没有试用、没有激活码、不联网校时', () => {
   const license = read('license.js');
   const bg = read('background.js');
   assert.match(license, /active:\s*true/, '授权必须恒为放行');
@@ -282,4 +282,38 @@ test('popup：只有「打开腾讯会议官网」一个主入口，旧的"打�
   // 网址不变：仍走 open-recordings（落到「我的录制」页，工作台就贴在那页右侧）
   assert.match(js, /getElementById\('open-recordings'\)[\s\S]{0,120}?send\('open-recordings'\)/,
     '按钮实际仍打开「我的录制」，不是首页');
+});
+
+test('v1.8.21 操作区：导出主按钮紧贴勾选行下方，停止在其右，进度条在下方', () => {
+  const html = read('batch.html');
+  // 步骤条只剩"打开 + 采集"两步，导出不再是第 3 步
+  assert.doesNotMatch(html, /id="btnExport"[\s\S]{0,200}?class="step"/, '导出不该还是步骤方块');
+  // 三个关键 id 都还在（JS 依赖它们），只是换了位置/形态
+  for (const id of ['btnExport', 'btnStop', 'progressWrap', 'btnOpenFolder']) {
+    assert.ok(html.includes(`id="${id}"`), `缺少 ${id}`);
+  }
+  // 顺序：选择条 → 导出条（按钮 + 进度条）→ 列表
+  const iSelect = html.indexOf('class="selectbar"');
+  const iExport = html.indexOf('class="exportbar"');
+  const iBtnExport = html.indexOf('id="btnExport"');
+  const iBtnStop = html.indexOf('id="btnStop"');
+  const iProgress = html.indexOf('id="progressWrap"');
+  const iList = html.indexOf('id="listWrap"');
+  assert.ok(iSelect < iExport && iExport < iList, '导出条必须在选择条和列表之间');
+  assert.ok(iBtnExport < iBtnStop && iBtnStop < iProgress, '开始导出在左、停止在右、进度条在下方');
+  // 打开下载目录从步骤按钮改成 noticebar 里的超链接，且排在"打开下载列表"后面
+  const iOpenDownloads = html.indexOf('id="btnOpenDownloads"');
+  const iOpenFolder = html.indexOf('id="btnOpenFolder"');
+  assert.ok(iOpenDownloads < iOpenFolder, '打开下载目录链接要放在打开下载列表右边');
+  assert.match(html, /id="btnOpenFolder"[^>]*class="link"/, '打开下载目录应是超链接样式');
+});
+
+test('v1.8.21 停止/继续切换：JS 有 resumeMode，停止后置位、点击变继续并可续导', () => {
+  const js = read('batch.js');
+  assert.match(js, /let resumeMode = false/, '要有停止/继续的形态标记');
+  assert.match(js, /showResume \? '继续' : '停止'/, '停下后按钮文案变"继续"');
+  assert.match(js, /classList\.toggle\('is-resume', showResume\)/, '继续态要有独立配色');
+  assert.match(js, /if \(!state\.busy && resumeMode\)[\s\S]{0,160}?return runExport\(\)/,
+    '点"继续"要重新发起导出（续导剩下的项），不用重新勾选');
+  assert.match(js, /resumeMode = true;[\s\S]{0,80}?callQuiet\('stop'\)/, '点"停止"要置位并停任务');
 });

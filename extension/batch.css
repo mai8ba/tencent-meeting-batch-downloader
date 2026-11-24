@@ -473,6 +473,32 @@ body {
 .progress.err .bar i { background: linear-gradient(90deg, #d93a3a, #ef6a6a); }
 .progress.ok .bar i { background: linear-gradient(90deg, #1a9c63, #43c08d); }
 
+/* ---------- 导出操作条：紧贴勾选区下方，先选再导 ---------- */
+.exportbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  padding: 10px 24px 12px;
+}
+.export-actions { display: flex; align-items: center; gap: 10px; }
+/* 主按钮：整条操作区最醒目的一个，用户勾完就能看到 */
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--brand); color: #fff; border-color: var(--brand);
+  font-weight: 600; padding: 9px 18px;
+  box-shadow: 0 2px 8px rgba(31, 111, 235, .22);
+}
+.btn-primary:hover:not(:disabled):not(.is-blocked) { background: var(--brand-hover); border-color: var(--brand-hover); }
+.btn-primary:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+/* 按钮内的状态副标题（已选 N 项 / 导出中…） */
+.export-sub { font-size: 11.5px; font-weight: 500; opacity: .85; }
+.exportbar .progress {
+  margin-top: 10px; padding: 0; background: none; border: none;
+}
+.exportbar .progress .bar { height: 7px; }
+/* 停止按钮在任务停下来后变"继续"，保持同样的尺寸不跳动 */
+#btnStop.is-resume { border-color: var(--brand); color: var(--brand); background: var(--brand-weak); }
+#btnStop.is-resume:hover:not(:disabled) { background: #dbe8ff; }
+
 /* ---------- 浮层提示 ---------- */
 .toast {
   position: fixed;
@@ -577,7 +603,7 @@ body {
 }
 .ws-body .topbar .top-actions { margin-left: 0; }
 .ws-body .brand-text .sub { max-width: 100%; white-space: normal; }
-/* 四步改成 2×2 网格：竖着一条会吃掉约 300px，窗口一矮就把清单整个挤没。 */
+/* 两步并排：v1.8.21 起导出移到勾选区下方，这里只剩"打开 + 采集"。 */
 .ws-body .stepbar {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -586,9 +612,6 @@ body {
   padding: 10px 14px;
 }
 .ws-body .step { width: 100%; }
-/* 停止按钮独占整行，排在四步后面 */
-.ws-body .stepbar .spacer { display: none; }
-.ws-body .stepbar #btnStop { grid-column: 1 / -1; }
 .ws-body .step-text em { max-width: none; }
 .ws-body .noticebar { padding: 8px 14px; }
 .ws-body .selectbar {
@@ -598,7 +621,12 @@ body {
 }
 .ws-body .selectbar .input.search { width: 100%; }
 .ws-body .selectbar .hint { margin-left: 0; width: 100%; text-align: left; }
-.ws-body .progress { padding: 8px 14px; flex-wrap: wrap; }
+/* 导出条：紧贴选择行；两个按钮平分宽度，进度条单独一行 */
+.ws-body .exportbar { padding: 10px 14px 12px; }
+.ws-body .export-actions { gap: 8px; }
+.ws-body .export-actions .btn { flex: 1; justify-content: center; padding-left: 8px; padding-right: 8px; }
+.ws-body .exportbar .progress { flex-wrap: wrap; gap: 6px 10px; margin-top: 9px; }
+.ws-body .exportbar .progress span { white-space: normal; line-height: 1.5; }
 .ws-body .item { padding: 10px 14px; }
 /* 清单区保底高度：再矮的窗口也至少露出两行，不至于看起来"清单没加载出来"。
    .ws-body 可上下滚（见 panel.css），上半部分固定、清单自己也能滚。 */

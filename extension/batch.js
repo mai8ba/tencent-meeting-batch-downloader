@@ -27,7 +27,7 @@
    * 这个版本号让外壳能当场比对并说破："你跑的是旧脚本"。
    * ⚠️ 改动本文件时必须同步改这里（tests/panel.test.cjs 有测试守着）。
    */
-  const BATCH_JS_VERSION = '1.8.20';
+  const BATCH_JS_VERSION = '1.8.21';
   globalThis.__tmeetBatchVersion = BATCH_JS_VERSION;
 
   /** 面板模式下节点在影子根里，所有查询都必须从这里起，document 找不到。 */
@@ -50,6 +50,10 @@
     starting: false,       // 点了按钮、还没拿到引擎确认：期间禁止重复点击
     pending: new Set(),    // "fileId|type"：上次点了导出但结果不明，必须人工确认才能重试
   };
+
+  // 停止/继续按钮形态：停止过一次后置 true，按钮变"继续"（点了续导剩下的项）。
+  // 这是纯界面状态，不存盘——刷新页面就该回到"停止"。
+  let resumeMode = false;
 
   // ------------------------------------------------------------
   // 与录制页通信
@@ -419,22 +423,25 @@
       : locked ? '授权未通过'
       : '点这里开始';
 
-    // ④ 开始导出
-    const exportStep = $('btnExport');
+    // 导出主按钮（v1.8.21 起移到勾选区正下方）：不再是步骤方块，而是醒目的主按钮。
+    const exportBtn = $('btnExport');
     const exporting = state.busy && state.live?.phase === 'exporting';
-    exportStep.classList.toggle('is-running', exporting);
-    exportStep.classList.toggle('step-go', !exporting && canExport);
-    exportStep.classList.toggle('needs-attention', locked);
-    setBlocked(exportStep, whyCannotExport());
+    setBlocked(exportBtn, whyCannotExport());
     $('exportSub').textContent = exporting
-      ? '导出中…'
-      : needConnect ? '要把第 1 步做完'
-      : locked ? '授权未通过'
-      : !total ? '要把第 2 步做完'
-      : !selected ? '先在列表里勾选'
-      : `已选 ${selected} 项`;
+      ? '· 导出中…'
+      : !selected ? '· 先勾选课程'
+      : `· 已选 ${selected} 项`;
 
-    // ④ 打开下载目录：常驻可用，不参与高亮
+    // 停止 / 继续：运行中显示"停止"；停下后变成"继续"（点了续导剩下的项）。
+    // 从未导出过时保持"停止"并置灰，避免一进来就看到一个没意义的"继续"。
+    const stopBtn = $('btnStop');
+    const showResume = !state.busy && resumeMode;
+    setText(stopBtn, showResume ? '继续' : '停止');
+    stopBtn.classList.toggle('is-resume', showResume);
+    const stopBlocked = showResume
+      ? (whyCannotExport() || '')          // 续导也要有勾选和连接
+      : (state.busy ? '' : '当前没有运行中的任务');
+    setBlocked(stopBtn, stopBlocked);
 
     // 选择条：计数与待核对
     const visible = visibleItems().length;
@@ -443,8 +450,6 @@
       : '未选择';
     setText('pendingCount', String(pendingInList));
     $('pendingBar').classList.toggle('hidden', pendingInList === 0);
-
-    setBlocked($('btnStop'), state.busy ? '' : '当前没有运行中的任务');
 
     // 开源版：不再有"未激活"这回事，徽章固定显示开源免费。
     const badge = $('licenseBadge');
@@ -754,12 +759,22 @@
     };
 
     clickActions.btnStop = async () => {
+      // 停止过一次后按钮变"继续"：点它就是重新发起一次导出，
+      // 引擎会自动认领已下好的项、只导剩下的，不用用户重新勾选。
+      if (!state.busy && resumeMode) {
+        resumeMode = false;
+        render();
+        return runExport();
+      }
       if (!state.busy) return toast('当前没有运行中的任务', true);
+      resumeMode = true;
       await callQuiet('stop');
-      toast('已发送停止指令，正在收尾…');
+      toast('已停止；可点「继续」接着导剩下的项', false);
     };
 
-    clickActions.btnExport = async () => {
+    clickActions.btnExport = async () => runExport();
+
+    async function runExport() {
       // 之前这里是 `if (state.starting || state.busy) return;` —— 静默返回，
       // 用户看到的就是"点了没反应"。现在任何一次点击都必须有明确回应。
       const blocked = whyCannotExport();

@@ -824,7 +824,7 @@ test('录制页不可见时：先让后台把页面切到前台，再继续导�
   assert.equal(result.started, true, '不应因为页面不可见就判定失败');
 });
 
-test('v1.8.20 逐字稿标签：同会议两行合并，全选只选代表行、导出目标不重复不落视频', async () => {
+test('v1.8.21 逐字稿标签：同会议两行合并，全选只选代表行、导出目标不重复不落视频', async () => {
   const c = content();
   c.api.state.collected = [
     { fileId: 'v1', name: '玫子', type: 'video', hasVideo: true, meetingId: '448436389', time: '2026-11-20 10:00', size: '24MB' },
