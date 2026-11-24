@@ -27,7 +27,7 @@
    * 这个版本号让外壳能当场比对并说破："你跑的是旧脚本"。
    * ⚠️ 改动本文件时必须同步改这里（tests/panel.test.cjs 有测试守着）。
    */
-  const BATCH_JS_VERSION = '2.0.1';
+  const BATCH_JS_VERSION = '2.0.2';
   globalThis.__tmeetBatchVersion = BATCH_JS_VERSION;
 
   /** 面板模式下节点在影子根里，所有查询都必须从这里起，document 找不到。 */
@@ -609,6 +609,29 @@
   // ------------------------------------------------------------
   // 事件绑定
   // ------------------------------------------------------------
+  /**
+   * 从一个被点中的节点往上找「登记过动作」的元素。
+   *
+   * 为什么不能写 `target.closest('[id]')`（v2.0.2 的 bug）：
+   * closest 会停在**最近的带 id 的节点**上，而按钮内部往往嵌着带 id 的文本块——
+   * `#btnExport` 里是 `#exportSub`、`#btnOpenRecordings` 里是 `#recordSub`、
+   * `#btnCollect` 里是 `#collectSub`。点到这些子元素时 closest 返回的是它们自己，
+   * 它们的 id 没有登记动作 ⇒ 直接 return，点击被静默吞掉。
+   * 表现就是麦爸说的"只能点在某几个字上，按钮边框里的其它位置点了没反应"。
+   *
+   * 正确做法：一路往上找，谁登记过动作就归谁，直到委托根（影子根 / document）为止。
+   * 这样按钮边框内的**任何像素**都归按钮，符合"按钮边界即热区"的直觉。
+   */
+  function findActionNode(target, actions, stopAt) {
+    let node = target && target.nodeType === 3 ? target.parentElement : target;
+    while (node && node !== stopAt) {
+      const id = node.id || (typeof node.getAttribute === 'function' ? node.getAttribute('id') : null);
+      if (id && actions[id]) return { node, action: actions[id] };
+      node = node.parentElement || node.parent || null;
+    }
+    return null;
+  }
+
   function bind() {
     // ── 全部走事件委托，不再逐个 onclick ──────────────────────────
     // 以前是逐个给按钮赋 onclick：任何一个元素取不到就抛 TypeError，
@@ -627,12 +650,11 @@
       // 类型筛选：这几个 .seg 没有 id，用 data-type 认
       const seg = target.closest('#typeFilter .seg');
       if (seg && seg.dataset.type) { event.preventDefault(); void applyTypeFilter(seg); return; }
-      const node = target.closest('[id]');
-      const action = node && clickActions[node.id];
-      if (!action) return;
+      const hit = findActionNode(target, clickActions, scope());
+      if (!hit) return;
       event.preventDefault();
       try {
-        const ret = action(event);
+        const ret = hit.action(event);
         if (ret && typeof ret.catch === 'function') ret.catch((e) => toast('操作失败：' + (e?.message || e), true));
       } catch (e) {
         toast('操作失败：' + (e?.message || e), true);
@@ -1093,7 +1115,7 @@
   }
 
   // 供单元测试验证的纯函数（生产逻辑不依赖这个对象）。
-  globalThis.TMeetBatchUI = Object.freeze({ escapeHtml, visibleItems, computePercent, exportBlockReason, listKeyOf, KEY_PREFIX });
+  globalThis.TMeetBatchUI = Object.freeze({ escapeHtml, visibleItems, computePercent, exportBlockReason, listKeyOf, findActionNode, KEY_PREFIX });
 
   // 面板模式（content script）下，panel.js 还在 fetch batch.html / batch.css，
   // 必须等节点真的注入到影子根之后再 bind，否则所有 $() 都是 null。
