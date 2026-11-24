@@ -21,6 +21,25 @@ function batchUi() {
   return ctx.TMeetBatchUI;
 }
 
+// ------------------------------------------------------------
+// 样式契约：主按钮任何状态都不许出现"白底白字"
+// 现场（v1.8.25）：被挡住的「开始导出」鼠标一悬停，通用 .btn:hover 把底色刷成
+// #f7f8fa，而 color:#fff 还在 .btn-primary 上 —— 字直接看不见，用户以为按钮坏了。
+// ------------------------------------------------------------
+test('主按钮被挡住时悬停不能变成白底白字', () => {
+  const css = fs.readFileSync(path.join(root, 'batch.css'), 'utf8');
+  const blocked = css.match(/\.btn\.btn-primary\.is-blocked:hover[\s\S]{0,240}?\}/);
+  assert.ok(blocked, '缺「被挡住 + 悬停」的显式规则：会重新落到通用的浅底上');
+  assert.doesNotMatch(blocked[0], /background:\s*(#fff\b|#ffffff|white\b|var\(--surface\))/i,
+    '被挡悬停还是白底，配白字就等于没字');
+  assert.match(blocked[0], /color:\s*#8b919b/i, '被挡状态的字应该是灰的，一眼看出"先做前面那步"');
+
+  const hover = css.match(/\.btn\.btn-primary:not\(\.is-blocked\):not\(\[aria-disabled="true"\]\):hover[\s\S]{0,200}?\}/);
+  assert.ok(hover, '缺「正常悬停」规则：会被通用 .btn:hover 的浅底盖掉');
+  assert.match(hover[0], /background:\s*var\(--brand-hover\)/, '正常悬停要保持品牌蓝');
+  assert.match(hover[0], /color:\s*#fff/, '正常悬停文字保持白色');
+});
+
 test('工作台转义所有插值到 HTML 的文本', () => {
   const ui = batchUi();
   assert.equal(ui.escapeHtml('<img src=x onerror="alert(1)">'),

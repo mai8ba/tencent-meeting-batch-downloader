@@ -367,6 +367,48 @@ test('逐字稿标签：清单页菜单点不开的项自动改走详情页，�
   assert.match(c.api.live.message, /自动改从详情页抓取成功/);
 });
 
+test('逐字稿导出失败要说明"哪一项、为什么"，不能只报干巴巴的失败 1', async () => {
+  const c = content();
+  c.api.state.filter.type = 'transcript';
+  const targets = [{ fileId: '1', page: 1, name: '何老师辅导沟通', meetingId: 'M1', transcriptVia: 'detail' }];
+  c.api.state.collected = [{ ...targets[0], type: 'video', hasVideo: true }];
+  c.api.state.selected.add('1');
+  c.api.override({
+    getSelected: () => targets.map(t => ({ ...t })),
+    exportTranscriptsViaDetail: async () => ({
+      started: true, total: 1, done: 0, failed: 1, deduped: 0,
+      // 站点确实没生成逐字稿：这是"合理失败"，但必须让用户看得见是哪一场、为什么。
+      failedItems: [{ fileId: '1', name: '何老师辅导沟通', code: 'capture-failed', reason: '该会议没有生成逐字稿' }],
+      error: '该会议没有生成逐字稿',
+    }),
+  });
+  const r = await c.api.exportByTag();
+  assert.equal(r.failed, 1);
+  assert.match(c.api.live.message, /何老师辅导沟通/, '要点名是哪一项失败');
+  assert.match(c.api.live.message, /没有生成逐字稿/, '要说清失败原因');
+});
+
+test('同一场次被合并掉的重复行不算失败，也不能算成"未开始"', async () => {
+  const c = content();
+  c.api.state.filter.type = 'transcript';
+  const targets = [
+    { fileId: '1', page: 1, name: '甲', meetingId: 'M1', transcriptVia: 'detail' },
+    { fileId: '2', page: 1, name: '甲（转写）', meetingId: 'M1', transcriptVia: 'detail' },
+  ];
+  c.api.state.collected = targets.map(t => ({ ...t, type: 'video', hasVideo: true }));
+  targets.forEach(t => c.api.state.selected.add(t.fileId));
+  c.api.override({
+    getSelected: () => targets.map(t => ({ ...t })),
+    // 详情页链路按 meetingId 去重：两行只抓一份，返回 deduped=1
+    exportTranscriptsViaDetail: async () => ({ started: true, total: 2, done: 1, failed: 0, deduped: 1, failedItems: [] }),
+  });
+  const r = await c.api.exportByTag();
+  assert.equal(r.done, 1);
+  assert.equal(r.failed, 0, '合并掉的重复行绝不能算失败');
+  assert.doesNotMatch(c.api.live.message, /未开始/, '也别谎报成"未开始"让人反复点继续');
+  assert.match(c.api.live.message, /重复行，已合并/);
+});
+
 test('全部课程待核对时保留未发送下载的原因，不用“任务结束”覆盖成成功状态', async () => {
   const c = content(); let clicks = 0;
   c.api.state.collected = [{ fileId: '1', page: 1, name: '课程1', type: 'transcript' }]; c.api.state.selected.add('1');

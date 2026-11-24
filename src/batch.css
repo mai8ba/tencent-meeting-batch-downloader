@@ -483,11 +483,30 @@ body {
 /* 主按钮：整条操作区最醒目的一个，用户勾完就能看到 */
 .btn-primary {
   display: inline-flex; align-items: center; gap: 8px;
-  background: var(--brand); color: #fff; border-color: var(--brand);
   font-weight: 600; padding: 9px 18px;
+}
+/* 主按钮的三种状态全部写死，绝不许落到通用 .btn:hover 的浅底上。
+   踩过的坑（v1.8.25 复发）：主按钮被挡住时（is-blocked）鼠标一悬停，
+   `.btn-primary:hover:not(:disabled):not(.is-blocked)` 因为 :not(.is-blocked) 不匹配而失效，
+   轮到 `.btn:hover:not(:disabled)`（特异性 0,3,0）把底色刷成 #f7f8fa，
+   但 color:#fff 还留在 .btn-primary 上 —— 白底白字，用户看到的就是"按钮里字没了"。
+   所以三态都用 (0,4,0)~(0,5,0) 的显式规则锁死，比通用 hover 高一级。 */
+.btn.btn-primary:not(.is-blocked):not([aria-disabled="true"]) {
+  background: var(--brand); border-color: var(--brand); color: #fff;
   box-shadow: 0 2px 8px rgba(31, 111, 235, .22);
 }
-.btn-primary:hover:not(:disabled):not(.is-blocked) { background: var(--brand-hover); border-color: var(--brand-hover); }
+.btn.btn-primary:not(.is-blocked):not([aria-disabled="true"]):hover {
+  background: var(--brand-hover); border-color: var(--brand-hover); color: #fff;
+}
+/* 被挡住时用"灰底灰字"而不是"半透明蓝底白字"：
+   一眼看出是"先把前面那步做完"，而不是"按钮坏了/字没了"。 */
+.btn.btn-primary.is-blocked,
+.btn.btn-primary[aria-disabled="true"],
+.btn.btn-primary.is-blocked:hover,
+.btn.btn-primary[aria-disabled="true"]:hover {
+  background: #eef1f5; border-color: #dfe3e9; color: #8b919b;
+  box-shadow: none; opacity: 1;
+}
 .btn-primary:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 /* 按钮内的状态副标题（已选 N 项 / 导出中…） */
 .export-sub { font-size: 11.5px; font-weight: 500; opacity: .85; }

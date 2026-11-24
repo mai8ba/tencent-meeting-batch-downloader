@@ -1,5 +1,5 @@
 // ============================================================
-// 腾讯会议录制批量下载助手 - content script (v1.8.24)
+// 腾讯会议录制批量下载助手 - content script (v1.8.25)
 // 注入到 https://meeting.tencent.com/user-center/meeting-record
 //
 // 本文件只做"执行引擎"：
@@ -638,6 +638,14 @@
     if (!targets.length) return { started: false, error: '还没有勾选任何课程' };
     const total = targets.length;
     let done = 0, failed = 0, lastError = '';
+    // 【v1.8.25】失败明细要带出去。原来只留一个 lastError 变量，外面拿不到，
+    // 现场就出现「成功 1，失败 1，共 2 项」——数字对，但用户不知道是哪一项、为什么。
+    const failedItems = [];
+    const noteFail = (target, code, reason) => {
+      failed++; lastError = reason;
+      if (target) target.exportError = reason;
+      failedItems.push({ fileId: target?.fileId, name: target?.name || '未知课程', code, reason });
+    };
     state.exporting = true;
     state.stopped = false;
     updateBusy();
@@ -680,8 +688,7 @@
           done++;
           await saveDraft();
         } catch (e) {
-          failed++;
-          lastError = e?.message || String(e);
+          noteFail(target, 'capture-failed', e?.message || String(e));
           log('逐字稿失败', target.name, e);
         } finally {
           await rpc('detail.closeTab', { tabId: detail.id }).catch(() => {});
@@ -701,14 +708,18 @@
       const pages = [...byPage.keys()].sort((a, b) => a - b);
       for (const page of pages) {
         checkStopped();
-        if (!(await gotoPage(page))) { failed += byPage.get(page).length; lastError = `第 ${page} 页翻页失败`; continue; }
+        if (!(await gotoPage(page))) {
+          // 整页都翻不过去：这一页的每一项都记成失败，而不是只留一句 lastError。
+          for (const t of byPage.get(page)) noteFail(t, 'page-failed', `第 ${page} 页翻页失败，请重新采集`);
+          continue;
+        }
         await waitRowsStable();
         for (const target of byPage.get(page)) {
           checkStopped();
           // 控制同时打开的详情页数量，避免一口气开上百个标签把浏览器拖死
           while (queue.length >= TRANSCRIPT_CONCURRENCY * 2 && !state.stopped) await sleep(150);
           const row = getRows().find((r) => parseRow(r).fileId === target.fileId);
-          if (!row) { failed++; lastError = '未找到该行：' + target.name; log('逐字稿：未找到行', target.name); continue; }
+          if (!row) { noteFail(target, 'row-missing', '第 ' + page + ' 页未找到该课程（列表可能已变化），请重新采集'); log('逐字稿：未找到行', target.name); continue; }
           paint(`打开详情页：${target.name}`);
           const before = await rpc('detail.listTabs').then((r) => r.tabs || []).catch(() => []);
           const beforeIds = new Set(before.map((t) => t.id));
@@ -721,7 +732,7 @@
             detail = now.find((t) => !beforeIds.has(t.id));
             if (detail) break;
           }
-          if (!detail) { failed++; lastError = '未检测到详情页：' + target.name; log('逐字稿：未检测到详情页', target.name); continue; }
+          if (!detail) { noteFail(target, 'no-detail', '点开标题后没等到详情页（15 秒）'); log('逐字稿：未检测到详情页', target.name); continue; }
           queue.push({ detail, target });
         }
       }
@@ -733,7 +744,8 @@
       const consumers = Array.from({ length: Math.min(TRANSCRIPT_CONCURRENCY, unique.length) }, () => consume());
       await Promise.all([prod, ...consumers]);
       if (produceError) throw produceError;
-      const tip = failed && lastError ? `（最后错误：${lastError}）` : '';
+      const first = failedItems[0];
+      const tip = failed && first ? `（首个失败：${first.name}｜${first.reason}）` : '';
       setLive({
         phase: failed ? 'error' : 'done',
         message: `逐字稿导出结束：成功 ${done}，失败 ${failed}，共 ${unique.length} 项${tip}`,
@@ -750,7 +762,14 @@
       state.exporting = false;
       updateBusy();
     }
-    return { started: true, total: unique.length, done, failed };
+    // 同一场次的重复行会被 unique 去重，所以 done+failed 一定 ≤ targets.length。
+    // 把 deduped 明确报出去，调用方核对总数时就不会把"合并掉的"误算成"没跑的/失败的"。
+    return {
+      started: true, total: targets.length, done, failed,
+      deduped: Math.max(0, targets.length - unique.length),
+      failedItems,
+      ...(failed && lastError ? { error: lastError } : {}),
+    };
   }
 
   async function exportSelected(targetsArg = null) {
@@ -1066,10 +1085,19 @@
     const asTranscript = listRows.map(t => ({ ...t, type: 'transcript' }));
 
     let done = 0, failed = 0, firstError = '';
-    let menuMissed = 0;
+    let menuMissed = 0, deduped = 0;
+    // 跨两条链路的失败明细：终态里要说清"哪一项、为什么"，不能只报"失败 1"。
+    const failures = [];
+    const tally = (r) => {
+      done += r.done || 0;
+      failed += r.failed || 0;
+      deduped += r.deduped || 0;
+      firstError = firstError || r.error || '';
+      if (r.failedItems?.length) failures.push(...r.failedItems);
+    };
     if (asTranscript.length) {
       const r = await exportSelected(asTranscript);
-      done += r.done || 0; failed += r.failed || 0; firstError = firstError || r.error || '';
+      tally(r);
       // 【v1.8.24】清单页快路点不开菜单的项，自动改走详情页抓。
       // 逐字稿数据本身在详情页接口里也有一份，不必非得点「更多 → 导出」。
       // 站点菜单靠 hover 渲染、页面一被切后台就弹不出来，这条兜底能让整批不至于白跑。
@@ -1081,28 +1109,41 @@
           .map(t => ({ ...t, transcriptVia: 'detail' }));
         // 先按"这 N 项还没算完成"退回失败数，再由降级结果重新计。
         failed -= retry.length;
+        // 这几项属于重试，明细先摘掉，重试结果说了算。
+        for (let i = failures.length - 1; i >= 0; i--) {
+          if (retryIds.has(failures[i].fileId)) failures.splice(i, 1);
+        }
         const r2 = await exportTranscriptsViaDetail(retry);
-        done += r2.done || 0;
-        failed += r2.failed || 0;
+        tally(r2);
         if (r2.done) firstError = `其中 ${r2.done} 项因站点菜单没弹出，已自动改从详情页抓取成功`;
       }
     }
     if (detailRows.length) {
       const r = await exportTranscriptsViaDetail(detailRows);
-      done += r.done || 0; failed += r.failed || 0; firstError = firstError || r.error || '';
+      tally(r);
     }
-    // 数字必须对得上总数：done + failed 应该等于 targets.length。
-    const unaccounted = targets.length - done - failed;
+    // 数字必须对得上总数：done + failed + 同场次合并掉的 应该等于 targets.length。
+    // 对不上说明有项既没成功也没失败（异常中止），明说"未开始"，别让它冒充成功。
+    const unaccounted = targets.length - done - failed - deduped;
     if (unaccounted > 0) failed += unaccounted; // 兜底：异常中止时别让用户以为"没跑的就等于成功"
+    // 首个失败必须带出来："哪一项、为什么"才是用户能判断和处理的。
+    // r.error 常常就是第一个失败项的原因，重复一遍没意义，只在不重合时才补。
+    const firstFail = failures[0];
+    const extraError = firstError && firstError !== firstFail?.reason ? firstError : '';
+    const failNote = failed && firstFail
+      ? `；首个失败：${firstFail.name}（${firstFail.reason}）`
+      : '';
     setLive({
       phase: failed ? 'error' : 'done',
       message: `逐字稿导出结束：成功 ${done}，失败 ${failed}，共 ${targets.length} 项`
         + (menuMissed ? `（其中 ${menuMissed} 项站点菜单没弹出）` : '')
-        + (firstError ? `；${firstError}` : '')
+        + (deduped ? `；${deduped} 项是同一场次的重复行，已合并` : '')
+        + (extraError ? `；${extraError}` : '')
+        + failNote
         + (unaccounted > 0 ? `；另有 ${unaccounted} 项未开始，可点「继续」接着导` : ''),
       total: targets.length, done, failed, active: 0, percent: 100,
     });
-    return { started: true, total: targets.length, done, failed };
+    return { started: true, total: targets.length, done, failed, failedItems: failures };
   }
 
   // 关闭所有残留的 hover 菜单（对每个更多图标派发 mouseout/mouseleave）
