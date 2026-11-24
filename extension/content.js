@@ -1,5 +1,5 @@
 // ============================================================
-// 腾讯会议录制批量下载助手 - content script (v1.8.21)
+// 腾讯会议录制批量下载助手 - content script (v1.8.22)
 // 注入到 https://meeting.tencent.com/user-center/meeting-record
 //
 // 本文件只做"执行引擎"：
@@ -452,7 +452,7 @@
   function filteredItems() {
     const { type, keyword } = state.filter;
     const kw = keyword.trim().toLowerCase();
-    // 两个标签（v1.8.21 起去掉"全部"）：
+    // 两个标签（v1.8.22 起去掉"全部"）：
     //   视频标签   —— 只列有文件大小的视频行；
     //   逐字稿标签 —— 按 会议号+时间 合并同一场的多行，每场只留一条逐字稿代表行。
     //                 只有视频没转写的场次也留着（标 transcriptVia=detail，导出进详情页）。
@@ -521,7 +521,7 @@
   }
 
   // 获取勾选的文件，作为导出目标。
-  // v1.8.21：导出目标 = 当前标签下的合并视图 ∩ 勾选集合。这样逐字稿标签下
+  // v1.8.22：导出目标 = 当前标签下的合并视图 ∩ 勾选集合。这样逐字稿标签下
   // 同一会议的视频行+转写行只会产出一条代表行（带 transcriptVia 标记），
   // 不会把视频行也当成独立目标下载。
   function getSelected() {
@@ -998,7 +998,7 @@
   }
 
   /**
-   * v1.8.21 按标签导出编排。
+   * v1.8.22 按标签导出编排。
    *   视频标签     —— 原样走清单页视频导出（视频链路代码零改动）。
    *   逐字稿标签   —— 导出目标已由 getSelected() 按会议号+时间合并：
    *     · transcriptVia='list'   （有纯逐字稿行）：清单页直接勾「逐字稿」下载，快路，不进详情页；
@@ -1385,7 +1385,7 @@
       // 前置条件不通过就直接报错，绝不能回 started:true 让工作台空等。
       const check = await preflightExport();
       if (!check.ok) return { ok: false, error: check.error };
-      // v1.8.21：按标签编排。逐字稿标签下同一会议已合并成一条，
+      // v1.8.22：按标签编排。逐字稿标签下同一会议已合并成一条，
       // 有纯逐字稿行的走清单页快路，只有视频行的进详情页；视频标签走原链路。
       void exportByTag().catch((e) => log('导出中断', e));
       return { ok: true, started: true, total: check.total };

@@ -109,6 +109,49 @@ test('collectVisible：没有 data-pid 时用 时间+正文 做键，同样去�
   assert.equal(d.collectVisible(container).length, 1);
 });
 
+test('v1.8.22 验货：真逐字稿（每行有时间戳）通过', () => {
+  const d = detailCtx();
+  const entries = [
+    { pid: 1, speaker: '张菲菲', time: '00:55', text: '来了。' },
+    { pid: 2, speaker: '麦爸', time: '00:58', text: '要不要那么早，还得干活。' },
+    { pid: 3, speaker: '', time: '01:11', text: '有吧。' },
+  ];
+  assert.equal(d.looksLikeTranscript(entries), true);
+});
+
+test('v1.8.22 验货：播放器 UI 文字（用户截图里的真实垃圾样本）一律判失败', () => {
+  const d = detailCtx();
+  // 这些就是"何老师辅导沟通"那份垃圾文件里的原文
+  const garbage = [
+    { pid: null, speaker: '返回何老师辅导沟通', time: '12:40', text: '676 434 766有人分享另存为翻译登录录制时不提示内容内存可加时卡0张用户中心切换账号' },
+    { pid: null, speaker: '', time: '', text: 'fodal window. Escape键=退出全屏或关闭窗口 Color/白底红绿蓝黄蓝 Transparency/不透明半透明背景' },
+    { pid: null, speaker: '', time: '', text: '放大字体Color/白底红绿蓝黄蓝 Transparency/不透明半透明背景 字体大小75%100%125%150%175%200%' },
+    { pid: null, speaker: '', time: '', text: '刷新时间:输入字幕内容，暂时无生成字幕内容，请输入。描记视频暂停当前时间/ 未生成 总时长 0% 倍速1.5x' },
+  ];
+  assert.equal(d.looksLikeTranscript(garbage), false, '混进播放器设置/空态文案，必须跳过不保存');
+  // 单条命中也不能放过
+  assert.equal(d.looksLikeTranscript([{ time: '00:01', text: '点击放大字体后选择透明背景' }]), false);
+});
+
+test('v1.8.22 验货：一条时间戳都没有 / 空内容判失败；正文偶尔提普通词不误杀', () => {
+  const d = detailCtx();
+  assert.equal(d.looksLikeTranscript([]), false);
+  assert.equal(d.looksLikeTranscript(null), false);
+  assert.equal(d.looksLikeTranscript([{ speaker: '甲', time: '', text: '没有时间戳的一段话' }]), false);
+  // 真实对话里提到"全屏""字体"这类普通词，不该被误杀
+  assert.equal(d.looksLikeTranscript([
+    { speaker: '甲', time: '00:10', text: '你把那个窗口全屏一下，字体看着清楚点。' },
+  ]), true);
+});
+
+test('v1.8.22 整页兜底禁用文本收集：collectAll 的开关调用写死在源码里', () => {
+  // 行为测试成本高（滚动等待），用契约锁定"退化到整页时关掉文本兜底"这根保险丝。
+  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'detail-transcript.js'), 'utf8');
+  assert.match(src, /allowTextFallback:\s*found\.exact/, '只有找到真容器才开文本兜底');
+  assert.match(src, /if \(!batch\.length && allowTextFallback\)/, '文本兜底必须受开关约束');
+  assert.match(src, /looksLikeTranscript\(entries\)/, 'DOM 兜底结果必须过验货闸门');
+});
+
 test('format：拼成 [时间] 发言人：正文 的纯文本', () => {
   const d = detailCtx();
   const out = d.format([

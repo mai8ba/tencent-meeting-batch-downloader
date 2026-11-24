@@ -27,7 +27,7 @@
    * 这个版本号让外壳能当场比对并说破："你跑的是旧脚本"。
    * ⚠️ 改动本文件时必须同步改这里（tests/panel.test.cjs 有测试守着）。
    */
-  const BATCH_JS_VERSION = '1.8.21';
+  const BATCH_JS_VERSION = '1.8.22';
   globalThis.__tmeetBatchVersion = BATCH_JS_VERSION;
 
   /** 面板模式下节点在影子根里，所有查询都必须从这里起，document 找不到。 */
@@ -423,7 +423,7 @@
       : locked ? '授权未通过'
       : '点这里开始';
 
-    // 导出主按钮（v1.8.21 起移到勾选区正下方）：不再是步骤方块，而是醒目的主按钮。
+    // 导出主按钮（v1.8.22 起移到勾选区正下方）：不再是步骤方块，而是醒目的主按钮。
     const exportBtn = $('btnExport');
     const exporting = state.busy && state.live?.phase === 'exporting';
     setBlocked(exportBtn, whyCannotExport());

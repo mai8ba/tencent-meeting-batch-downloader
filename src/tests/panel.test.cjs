@@ -213,7 +213,7 @@ test('扩展 manifest 不要写死 key：没有 key 时重新加载扩展 ID 会
   assert.equal(manifest.key, undefined, 'manifest 里不要写 key（会锁死扩展 ID，调试期反而碍事）');
 });
 
-test('v1.8.21 抽屉形态：贴边把手 + 右侧滑出，而不是铺满整页', () => {
+test('v1.8.22 抽屉形态：贴边把手 + 右侧滑出，而不是铺满整页', () => {
   const src = read('panel.js');
   const css = read('panel.css');
   assert.match(src, /ws-handle/, '必须有贴边的把手');
@@ -240,7 +240,7 @@ test('把手点得开：开门 class 在影子上，CSS 必须穿过影子墙去
     '裸 .ws-open .ws-drawer 在影子里匹配不到宿主，抽屉会永远藏在屏幕外');
 });
 
-test('v1.8.21 采集完成不再自动弹抽屉，只在把手上挂角标', () => {
+test('v1.8.22 采集完成不再自动弹抽屉，只在把手上挂角标', () => {
   const src = read('content.js');
   const at = src.indexOf('TMeetPanel?.setBadge');
   assert.ok(at > 0, '采集完应该走 setBadge');
@@ -262,7 +262,7 @@ test('清单区不能被上面几块挤没：body 可滚 + 清单保底高度 + 
     '四步要压成两列，别竖着排吃掉 300px');
 });
 
-test('v1.8.21 开源版：没有试用、没有激活码、不联网校时', () => {
+test('v1.8.22 开源版：没有试用、没有激活码、不联网校时', () => {
   const license = read('license.js');
   const bg = read('background.js');
   assert.match(license, /active:\s*true/, '授权必须恒为放行');
@@ -284,7 +284,7 @@ test('popup：只有「打开腾讯会议官网」一个主入口，旧的"打�
     '按钮实际仍打开「我的录制」，不是首页');
 });
 
-test('v1.8.21 操作区：导出主按钮紧贴勾选行下方，停止在其右，进度条在下方', () => {
+test('v1.8.22 操作区：导出主按钮紧贴勾选行下方，停止在其右，进度条在下方', () => {
   const html = read('batch.html');
   // 步骤条只剩"打开 + 采集"两步，导出不再是第 3 步
   assert.doesNotMatch(html, /id="btnExport"[\s\S]{0,200}?class="step"/, '导出不该还是步骤方块');
@@ -308,7 +308,7 @@ test('v1.8.21 操作区：导出主按钮紧贴勾选行下方，停止在其右
   assert.match(html, /id="btnOpenFolder"[^>]*class="link"/, '打开下载目录应是超链接样式');
 });
 
-test('v1.8.21 停止/继续切换：JS 有 resumeMode，停止后置位、点击变继续并可续导', () => {
+test('v1.8.22 停止/继续切换：JS 有 resumeMode，停止后置位、点击变继续并可续导', () => {
   const js = read('batch.js');
   assert.match(js, /let resumeMode = false/, '要有停止/继续的形态标记');
   assert.match(js, /showResume \? '继续' : '停止'/, '停下后按钮文案变"继续"');

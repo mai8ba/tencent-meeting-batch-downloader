@@ -64,6 +64,26 @@
     });
   }
 
+  /**
+   * v1.8.22 验货：判断一堆段落是否像真逐字稿，防止把播放器 UI / 空态说明当正文存下去。
+   * 判据（满足任一即判"不是逐字稿"）：
+   *   1) 命中明显的播放器设置面板 / 空态提示文案（放大字体、透明背景、未生成字幕…）
+   *   2) 一条带合法时间戳的都没有（真逐字稿每行都有 mm:ss）
+   * 真逐字稿的正文里偶尔提到"全屏""字体"这类词很正常，所以只匹配"整句级"的固定短语，
+   * 不因单个普通词误杀。
+   */
+  const UI_NOISE = /(Transparency|不透明半透明背景|白底红绿蓝黄蓝|放大字体|恢复至默认设置|退出全屏或关闭窗口|modal window|输入字幕内容|暂时无生成字幕|未生成\s*总时长|倍速\s*[\d.]+x|加时卡|刷新时间[:：])/i;
+  function looksLikeTranscript(entries) {
+    if (!Array.isArray(entries) || !entries.length) return false;
+    let timed = 0;
+    for (const e of entries) {
+      const body = String(e?.text || '');
+      if (UI_NOISE.test(body) || UI_NOISE.test(String(e?.speaker || ''))) return false;
+      if (/^\d{1,2}:\d{2}(?::\d{2})?$/.test(String(e?.time || '').trim())) timed++;
+    }
+    return timed > 0;
+  }
+
   /** 组装成纯文本：每行 "[时间] 发言人：正文"。 */
   function format(entries) {
     const lines = entries.map((e) => {
@@ -149,13 +169,18 @@
     return { text: format(entries), count: entries.length, source: 'api' };
   }
 
+  /**
+   * v1.8.22：返回 { node, exact }。
+   * exact=true 才是真正的逐字稿容器；退化到 documentElement 时 exact=false——
+   * 这时绝不能跑 collectByText（整页可见文字会把播放器设置面板/空态说明当正文抄下来）。
+   */
   function findContainer() {
-    return document.querySelector('.minutes-module-list') ||
+    const exact =
+      document.querySelector('.minutes-module-list') ||
       document.querySelector('[class*="minutes-module-list"]') ||
-      document.querySelector('[class*="minutes-list"]') ||
-      // 类名改版时的最后兜底：用文档根元素（能正常滚动/取高度）。collectVisible 仍只认段落节点，
-      // 不会把页面其它文字当逐字稿。
-      document.documentElement;
+      document.querySelector('[class*="minutes-list"]');
+    if (exact) return { node: exact, exact: true };
+    return { node: document.documentElement, exact: false };
   }
 
   function clickTranscriptTab() {
@@ -169,15 +194,19 @@
   async function waitContainer(timeoutMs = 20000) {
     const end = Date.now() + timeoutMs;
     while (Date.now() < end) {
-      const c = findContainer();
-      if (c && visible(c)) return c;
+      const found = findContainer();
+      // 真容器要可见才算就绪；documentElement 兜底只用于"确实没有容器但页面还在"的情况。
+      if (found.node && visible(found.node)) return found;
       await sleep(300);
     }
     return null;
   }
 
-  /** 滚动收集：反复取当前段落 + 滚到底部，直到不再增长或到底。 */
-  async function collectAll(container, { maxRounds = 400, settleRounds = 5 } = {}) {
+  /** 滚动收集：反复取当前段落 + 滚到底部，直到不再增长或到底。
+   *  allowTextFallback：只有在真逐字稿容器里才允许 collectByText 文本兜底；
+   *  退化到整页时强制关闭，否则会把播放器 UI 文字全抄进来（v1.8.22）。
+   */
+  async function collectAll(container, { maxRounds = 400, settleRounds = 5, allowTextFallback = true } = {}) {
     const all = new Map();
     const keyOf = (e) => e.pid !== null ? 'pid:' + e.pid : (e.time + '|' + e.text).slice(0, 300);
     let lastSize = -1, settle = 0;
@@ -185,7 +214,7 @@
     await sleep(250);
     for (let round = 0; round < maxRounds; round++) {
       let batch = collectVisible(container);
-      if (!batch.length) batch = collectByText(container);
+      if (!batch.length && allowTextFallback) batch = collectByText(container);
       for (const e of batch) {
         const key = keyOf(e);
         if (!all.has(key)) all.set(key, e);
@@ -227,13 +256,18 @@
       await sleep(150);
     }
 
-    // 兜底：接口没拿到（站点改路径/改动监听失效），退回 DOM 滚动
-    const container = await waitContainer(12000);
-    const entries = container ? await collectAll(container) : [];
+    // 兜底：接口没拿到（站点改路径/改动监听失效），退回 DOM 滚动。
+    // v1.8.22：只有找到真容器才允许文本兜底；退化到整页时只认 paragraph 节点。
+    const found = await waitContainer(12000);
+    const entries = found ? await collectAll(found.node, { allowTextFallback: found.exact }) : [];
     if (!entries.length) {
       // 把卡点说清楚：接口没拦到、DOM 也没读到，方便定位而不是只说"失败"。
       const apiHint = apiParagraphs.size ? `接口只拿到 ${apiParagraphs.size} 段` : '接口未拦到逐字稿数据';
-      return { ok: false, error: `逐字稿读取失败（${apiHint}）；请确认该会议已生成逐字稿，或手动点开「逐字稿」标签后重试` };
+      return { ok: false, error: `这场会议没有生成逐字稿，或逐字稿尚未加载（${apiHint}）；请手动点开该会议的「逐字稿」标签确认后再试` };
+    }
+    // v1.8.22 验货：抓到的是播放器 UI / 空态说明，宁可报失败也不存一份垃圾文件。
+    if (!looksLikeTranscript(entries)) {
+      return { ok: false, error: '读到的内容不像逐字稿（疑似播放器界面文字或未生成字幕），已跳过不保存；请手动点开该会议的「逐字稿」标签确认' };
     }
     logCapture('dom', entries.length);
     return { ok: true, text: format(entries), count: entries.length, source: 'dom' };
@@ -251,5 +285,5 @@
     return true; // 异步 respond
   });
 
-  globalThis.TMeetDetail = Object.freeze({ collectVisible, collectByText, format, msToClock, fromApiData, capture });
+  globalThis.TMeetDetail = Object.freeze({ collectVisible, collectByText, looksLikeTranscript, format, msToClock, fromApiData, capture });
 })();
